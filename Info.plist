@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Hide from Dock (menu bar only app) -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- Bluetooth permission for proximity detection -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>MacGuard uses Bluetooth to detect your trusted devices and automatically disarm when you're nearby.</string>
+
+    <!-- Apple Events for volume control -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>MacGuard needs to control system volume to play the alarm at maximum volume.</string>
+
+    <!-- Prevent automatic termination -->
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+
+    <!-- Version info -->
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>com.shenglong.macguard</string>
+
+    <key>CFBundleName</key>
+    <string>MacGuard</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>MacGuard</string>
+
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+</dict>
+</plist>

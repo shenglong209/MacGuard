@@ -1,0 +1,17 @@
+# Build
+.build/
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
+
+# macOS
+.DS_Store
+*.dSYM
+
+# IDE
+.idea/
+*.xcuserstate
