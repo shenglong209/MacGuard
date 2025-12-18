@@ -8,6 +8,7 @@ import ServiceManagement
 /// Main settings view for MacGuard
 struct SettingsView: View {
     @ObservedObject var alarmManager: AlarmStateManager
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -161,6 +162,58 @@ struct SettingsView: View {
                     Label("Security", systemImage: "lock.fill")
                 }
 
+                // Behavior Section
+                Section {
+                    Toggle("Lock screen when armed", isOn: $settings.autoLockOnArm)
+
+                    Picker("Alarm Sound", selection: Binding(
+                        get: { settings.alarmSound },
+                        set: { newValue in
+                            if newValue == .custom {
+                                _ = settings.selectCustomSound()
+                            } else {
+                                settings.alarmSound = newValue
+                            }
+                        }
+                    )) {
+                        ForEach(AlarmSound.allCases.filter { $0.isAvailable }) { sound in
+                            Text(sound.rawValue).tag(sound)
+                        }
+                    }
+
+                    // Show custom file info when custom is selected
+                    if settings.alarmSound == .custom {
+                        HStack {
+                            Image(systemName: "music.note")
+                                .foregroundColor(.secondary)
+                            Text(settings.customSoundName)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Button("Change") {
+                                _ = settings.selectCustomSound()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+
+                    HStack {
+                        Text("Volume")
+                        Slider(value: $settings.alarmVolume, in: 0.5...1.0)
+                        Button {
+                            settings.previewSound()
+                        } label: {
+                            Image(systemName: "speaker.wave.2")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                } header: {
+                    Label("Behavior", systemImage: "gearshape.2")
+                }
+
                 // Startup Section
                 Section {
                     LaunchAtLoginToggle()
@@ -186,7 +239,7 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
         }
-        .frame(width: 420, height: 580)
+        .frame(width: 420, height: 680)
     }
 
     // MARK: - Helper Functions

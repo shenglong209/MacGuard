@@ -15,28 +15,25 @@ class AlarmAudioManager: ObservableObject {
 
     // MARK: - Playback
 
-    /// Play the alarm sound at maximum volume
+    /// Play the alarm sound at configured volume
     func playAlarm() {
         guard !isPlaying else { return }
+
+        let settings = AppSettings.shared
 
         // Save original volume
         saveOriginalVolume()
 
-        // Set system volume to max
-        setSystemVolume(1.0)
+        // Set system volume based on settings
+        setSystemVolume(Float(settings.alarmVolume))
 
         // Unmute if muted
         unmuteSpeaker()
 
-        // Try to load alarm sound from module bundle (SPM resources)
-        let bundle = Bundle.module
-        if let url = bundle.url(forResource: "alarm", withExtension: "mp3", subdirectory: "Resources")
-            ?? bundle.url(forResource: "alarm", withExtension: "aiff", subdirectory: "Resources")
-            ?? bundle.url(forResource: "alarm", withExtension: "wav", subdirectory: "Resources") {
-            playAudioFile(url)
-        } else if FileManager.default.fileExists(atPath: "/System/Library/Sounds/Funk.aiff") {
-            // Use system Funk sound as fallback
-            playAudioFile(URL(fileURLWithPath: "/System/Library/Sounds/Funk.aiff"))
+        // Use configured alarm sound (custom or system)
+        if let soundPath = settings.effectiveSoundPath,
+           FileManager.default.fileExists(atPath: soundPath) {
+            playAudioFile(URL(fileURLWithPath: soundPath))
         } else {
             // Fallback to system beep
             print("[Alarm] Alarm sound not found, using system beep")

@@ -27,8 +27,8 @@ struct TrustedDevice: Identifiable, Codable, Hashable {
         return rssi > TrustedDevice.rssiThreshold
     }
 
-    /// RSSI threshold for "nearby" detection (-50 dBm ≈ 1m)
-    static let rssiThreshold: Int = -50
+    /// RSSI threshold for "nearby" detection (-70 dBm ≈ 3-5m)
+    static let rssiThreshold: Int = -70
 
     // MARK: - Initialization
 

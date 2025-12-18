@@ -9,32 +9,75 @@ struct CountdownOverlayView: View {
     @ObservedObject var alarmManager: AlarmStateManager
 
     @State private var showPINEntry = false
+    @State private var iconScale: CGFloat = 1.0
+    @State private var pulseOpacity: Double = 0.3
 
     var body: some View {
         ZStack {
-            // Dark overlay background
-            Color.black.opacity(0.85)
-                .edgesIgnoringSafeArea(.all)
+            // Dark overlay background with gradient
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.95),
+                    alarmManager.state == .alarming ? Color.red.opacity(0.3) : Color.black.opacity(0.85)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .edgesIgnoringSafeArea(.all)
+
+            // Pulsing background circle for alarm state
+            if alarmManager.state == .alarming {
+                Circle()
+                    .fill(Color.red.opacity(pulseOpacity))
+                    .frame(width: 300, height: 300)
+                    .blur(radius: 60)
+            }
 
             VStack(spacing: 30) {
-                // Warning icon
-                Image(systemName: iconName)
-                    .font(.system(size: 80))
-                    .foregroundColor(iconColor)
+                // Warning icon with animation
+                ZStack {
+                    // Glow effect
+                    Image(systemName: iconName)
+                        .font(.system(size: 90))
+                        .foregroundStyle(iconColor.opacity(0.5))
+                        .blur(radius: 20)
+
+                    Image(systemName: iconName)
+                        .font(.system(size: 80))
+                        .foregroundStyle(iconColor)
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .scaleEffect(iconScale)
 
                 // Title
                 Text(titleText)
-                    .font(.largeTitle.bold())
-                    .foregroundColor(.white)
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .tracking(alarmManager.state == .alarming ? 4 : 1)
 
                 // Countdown (only in triggered state)
                 if alarmManager.state == .triggered {
-                    Text("\(alarmManager.countdownSeconds)")
-                        .font(.system(size: 120, weight: .bold, design: .rounded))
-                        .foregroundColor(.red)
+                    ZStack {
+                        // Background ring
+                        Circle()
+                            .stroke(Color.red.opacity(0.3), lineWidth: 8)
+                            .frame(width: 160, height: 160)
+
+                        // Progress ring
+                        Circle()
+                            .trim(from: 0, to: CGFloat(alarmManager.countdownSeconds) / 3.0)
+                            .stroke(Color.red, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .frame(width: 160, height: 160)
+                            .rotationEffect(.degrees(-90))
+
+                        Text("\(alarmManager.countdownSeconds)")
+                            .font(.system(size: 72, weight: .bold, design: .rounded))
+                            .foregroundStyle(.red)
+                    }
 
                     Text("Authenticate to disarm")
-                        .foregroundColor(.gray)
+                        .font(.body)
+                        .foregroundStyle(.gray)
                 }
 
                 // Auth buttons or PIN entry (mutually exclusive)
@@ -43,38 +86,54 @@ struct CountdownOverlayView: View {
                         isPresented: $showPINEntry,
                         alarmManager: alarmManager
                     )
+                    .transition(.scale.combined(with: .opacity))
                 } else {
                     HStack(spacing: 20) {
                         if alarmManager.authManager.hasBiometrics {
                             Button(action: authenticateWithBiometrics) {
-                                Label("Touch ID", systemImage: "touchid")
-                                    .font(.title2)
-                                    .padding()
-                                    .frame(width: 160)
+                                HStack(spacing: 12) {
+                                    Image(systemName: "touchid")
+                                        .font(.title)
+                                    Text("Touch ID")
+                                        .font(.title3.weight(.semibold))
+                                }
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 16)
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.blue)
                         }
 
                         if alarmManager.authManager.hasPIN {
-                            Button(action: { showPINEntry = true }) {
-                                Label("Enter PIN", systemImage: "number")
-                                    .font(.title2)
-                                    .padding()
-                                    .frame(width: 160)
+                            Button(action: { withAnimation { showPINEntry = true } }) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "number.square")
+                                        .font(.title)
+                                    Text("Enter PIN")
+                                        .font(.title3.weight(.semibold))
+                                }
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 16)
                             }
                             .buttonStyle(.bordered)
+                            .tint(.white)
                         }
                     }
                 }
             }
+        }
+        .onAppear {
+            startAnimations()
+        }
+        .onChange(of: alarmManager.state) { _ in
+            startAnimations()
         }
     }
 
     // MARK: - Computed Properties
 
     private var iconName: String {
-        alarmManager.state == .alarming ? "bell.badge.fill" : "exclamationmark.triangle.fill"
+        alarmManager.state == .alarming ? "bell.badge.waveform.fill" : "exclamationmark.shield.fill"
     }
 
     private var iconColor: Color {
@@ -85,13 +144,28 @@ struct CountdownOverlayView: View {
         alarmManager.state == .alarming ? "ALARM ACTIVE" : "UNAUTHORIZED ACCESS"
     }
 
+    // MARK: - Animations
+
+    private func startAnimations() {
+        // Icon pulse animation
+        withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+            iconScale = alarmManager.state == .alarming ? 1.15 : 1.05
+        }
+
+        // Background pulse for alarm state
+        if alarmManager.state == .alarming {
+            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                pulseOpacity = 0.6
+            }
+        }
+    }
+
     // MARK: - Actions
 
     private func authenticateWithBiometrics() {
         alarmManager.attemptBiometricDisarm { success in
             if !success {
-                // Show PIN as fallback
-                showPINEntry = true
+                withAnimation { showPINEntry = true }
             }
         }
     }
@@ -104,45 +178,87 @@ struct PINOverlay: View {
 
     @State private var pin = ""
     @State private var showError = false
+    @State private var shake = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Enter PIN")
-                .font(.headline)
-                .foregroundColor(.white)
+        VStack(spacing: 24) {
+            // Header
+            VStack(spacing: 8) {
+                Image(systemName: "number.square.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.blue)
 
-            // Use native AppKit text field for reliable input in overlay
-            OverlaySecureTextField(text: $pin, placeholder: "PIN", onSubmit: validate)
-                .frame(width: 200, height: 28)
-
-            if showError {
-                Text("Incorrect PIN")
-                    .foregroundColor(.red)
+                Text("Enter PIN")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
             }
 
-            HStack {
-                Button("Cancel") {
-                    isPresented = false
+            // PIN input field
+            OverlaySecureTextField(text: $pin, placeholder: "PIN", onSubmit: validate)
+                .frame(width: 180, height: 32)
+                .offset(x: shake ? -10 : 0)
+
+            // Error message
+            if showError {
+                HStack(spacing: 6) {
+                    Image(systemName: "xmark.circle.fill")
+                    Text("Incorrect PIN")
+                }
+                .font(.system(.callout, design: .rounded))
+                .foregroundStyle(.red)
+            }
+
+            // Action buttons
+            HStack(spacing: 16) {
+                Button {
+                    withAnimation { isPresented = false }
+                } label: {
+                    Text("Cancel")
+                        .font(.body.weight(.medium))
+                        .frame(width: 80)
+                        .padding(.vertical, 10)
                 }
                 .buttonStyle(.bordered)
+                .tint(.gray)
 
-                Button("Verify") {
+                Button {
                     validate()
+                } label: {
+                    Text("Verify")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 80)
+                        .padding(.vertical, 10)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.blue)
             }
         }
-        .padding(30)
-        .background(Color.gray.opacity(0.3))
-        .cornerRadius(16)
+        .padding(32)
+        .background {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(.white.opacity(0.2), lineWidth: 1)
+                }
+        }
     }
 
     private func validate() {
         if alarmManager.attemptPINDisarm(pin) {
-            isPresented = false
+            withAnimation { isPresented = false }
         } else {
             showError = true
             pin = ""
+            // Shake animation
+            withAnimation(.default) {
+                shake = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.default) {
+                    shake = false
+                }
+            }
         }
     }
 }

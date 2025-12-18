@@ -28,6 +28,7 @@ class AlarmStateManager: ObservableObject {
     // MARK: - Private Properties
 
     private var countdownTimer: Timer?
+    private var cancellables = Set<AnyCancellable>()
     private let inputMonitor = InputMonitor()
     private let sleepMonitor = SleepMonitor()
     private let powerMonitor = PowerMonitor()
@@ -47,6 +48,14 @@ class AlarmStateManager: ObservableObject {
         powerMonitor.delegate = self
         bluetoothManager.delegate = self
         checkPermissions()
+
+        // Forward bluetoothManager changes to trigger view updates
+        bluetoothManager.$trustedDevice
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 
     /// Check current accessibility permission status
@@ -65,12 +74,14 @@ class AlarmStateManager: ObservableObject {
 
     // MARK: - State Transitions
 
-    /// Arm the alarm system, lock screen, and start monitoring
+    /// Arm the alarm system, optionally lock screen, and start monitoring
     func arm() {
         guard state == .idle else { return }
 
-        // First lock the screen (before input monitoring to avoid self-trigger)
-        lockScreen()
+        // Lock screen if enabled in settings
+        if AppSettings.shared.autoLockOnArm {
+            lockScreen()
+        }
 
         // Start monitors after a delay to avoid capturing the lock keystroke
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in

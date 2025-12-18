@@ -32,8 +32,9 @@ class BluetoothProximityManager: NSObject, ObservableObject {
     private var rssiReadTimer: Timer?
 
     // Hysteresis thresholds to prevent oscillation
-    private let rssiPresentThreshold: Int = -48  // Device present when above this
-    private let rssiAwayThreshold: Int = -52     // Device away when below this
+    // -70 dBm ≈ 3-5m range, suitable for detecting nearby devices
+    private let rssiPresentThreshold: Int = -70  // Device present when above this
+    private let rssiAwayThreshold: Int = -80     // Device away when below this
 
     // UserDefaults key for persistence
     private let trustedDeviceKey = "MacGuard.trustedDevice"
@@ -44,6 +45,12 @@ class BluetoothProximityManager: NSObject, ObservableObject {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
         loadTrustedDevice()
+    }
+
+    /// Start scanning if trusted device exists (called when Bluetooth powers on)
+    private func startScanningIfNeeded() {
+        guard trustedDevice != nil, centralManager.state == .poweredOn else { return }
+        startScanning()
     }
 
     // MARK: - Trusted Device Management
@@ -182,6 +189,11 @@ extension BluetoothProximityManager: CBCentralManagerDelegate {
         @unknown default: stateName = "unknown"
         }
         print("[Bluetooth] State changed: \(stateName)")
+
+        // Auto-start scanning when Bluetooth powers on and trusted device exists
+        if central.state == .poweredOn {
+            startScanningIfNeeded()
+        }
 
         delegate?.bluetoothStateChanged(central.state)
     }

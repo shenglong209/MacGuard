@@ -17,20 +17,29 @@ struct MacGuardApp: App {
         } label: {
             MenuBarIconView(state: alarmManager.state)
         }
-        .menuBarExtraStyle(.menu)
+        .menuBarExtraStyle(.window)
     }
 }
 
-/// Custom menu bar icon view that uses custom image or SF Symbol based on state
+/// Custom menu bar icon view with state-based appearance
 struct MenuBarIconView: View {
     let state: AlarmState
 
     var body: some View {
-        if state == .idle, let image = loadMenuBarIcon() {
-            Image(nsImage: image)
-        } else {
-            // Use SF Symbols for armed/triggered/alarming states (more visible)
-            Image(systemName: state.menuBarIcon)
+        HStack(spacing: 4) {
+            if let image = loadMenuBarIcon() {
+                Image(nsImage: image)
+            } else {
+                // Fallback to SF Symbol
+                Image(systemName: "shield")
+            }
+
+            // Show colored dot indicator for active states
+            if state != .idle {
+                Circle()
+                    .fill(indicatorColor)
+                    .frame(width: 6, height: 6)
+            }
         }
     }
 
@@ -39,8 +48,21 @@ struct MenuBarIconView: View {
               let image = NSImage(contentsOf: url) else {
             return nil
         }
-        // Set as template for proper light/dark mode support
+        // Template mode allows automatic light/dark mode adaptation
         image.isTemplate = true
         return image
+    }
+
+    private var indicatorColor: Color {
+        switch state {
+        case .idle:
+            return .clear
+        case .armed:
+            return .green
+        case .triggered:
+            return .yellow
+        case .alarming:
+            return .red
+        }
     }
 }

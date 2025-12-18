@@ -4,6 +4,7 @@
 
 import SwiftUI
 import CoreBluetooth
+import IOBluetooth
 
 /// Window controller for device scanner
 class DeviceScannerWindowController: NSObject, NSWindowDelegate {
@@ -71,14 +72,32 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
     @Published var isScanning = false
 
     private var centralManager: CBCentralManager?
+    private var pairedDeviceNames: Set<String> = []
 
     func startScanning() {
         guard !isScanning else { return }
         isScanning = true
         discoveredDevices = []
 
-        // Create our own central manager for discovery
+        // Get paired device names from IOBluetooth
+        loadPairedDeviceNames()
+
+        // Create central manager for BLE discovery (to get RSSI)
         centralManager = CBCentralManager(delegate: self, queue: nil)
+    }
+
+    /// Load paired device names from system Bluetooth
+    private func loadPairedDeviceNames() {
+        pairedDeviceNames = []
+        guard let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else {
+            return
+        }
+        for device in paired {
+            if let name = device.name, !name.isEmpty {
+                pairedDeviceNames.insert(name)
+                print("[Scanner] Paired device: \(name)")
+            }
+        }
     }
 
     func stopScanning() {
@@ -111,12 +130,12 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
 extension DeviceScannerViewModel: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
-            // Scan for all peripherals
+            // Scan for peripherals to get RSSI readings
             central.scanForPeripherals(
                 withServices: nil,
                 options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
             )
-            print("[Scanner] Started scanning")
+            print("[Scanner] Started scanning for paired devices")
         }
     }
 
@@ -126,8 +145,10 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
-        // Only include devices with names (skip unnamed)
         guard let name = peripheral.name, !name.isEmpty else { return }
+
+        // Only show devices that are paired (match by name)
+        guard pairedDeviceNames.contains(name) else { return }
 
         // Check if already in list
         if !discoveredDevices.contains(where: { $0.id == peripheral.identifier }) {
@@ -140,7 +161,7 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
                 self.discoveredDevices.append(device)
                 self.discoveredDevices.sort { $0.rssi > $1.rssi }
             }
-            print("[Scanner] Found: \(name) (RSSI: \(RSSI))")
+            print("[Scanner] Found paired device: \(name) (RSSI: \(RSSI))")
         }
     }
 }
@@ -160,55 +181,91 @@ struct DeviceScannerContainerView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
+            HStack(spacing: 12) {
                 if viewModel.isScanning {
                     ProgressView()
-                        .scaleEffect(0.7)
-                    Text("Scanning...")
-                        .foregroundColor(.secondary)
+                        .scaleEffect(0.8)
+                    Text("Scanning for paired devices...")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
                 } else {
-                    Text("Select your iPhone or Apple Watch")
-                        .foregroundColor(.secondary)
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .foregroundStyle(.blue)
+                    Text("Select a paired device")
+                        .font(.body.weight(.medium))
                 }
                 Spacer()
             }
             .padding()
+            .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
 
             // Device list
             if viewModel.discoveredDevices.isEmpty {
-                VStack {
+                VStack(spacing: 16) {
                     Spacer()
-                    Image(systemName: "antenna.radiowaves.left.and.right")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary)
-                    Text("Looking for nearby devices...")
-                        .foregroundColor(.secondary)
-                    Text("Make sure Bluetooth is enabled on your device")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+
+                    ZStack {
+                        Circle()
+                            .fill(.blue.opacity(0.1))
+                            .frame(width: 100, height: 100)
+
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.blue)
+                    }
+
+                    VStack(spacing: 6) {
+                        Text("Looking for paired devices...")
+                            .font(.system(.headline, design: .rounded))
+                        Text("Only devices paired with this Mac will appear")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+
                     Spacer()
                 }
             } else {
                 List(viewModel.discoveredDevices) { device in
-                    Button(action: {
+                    Button {
                         viewModel.selectDevice(device)
                         onDismiss()
-                    }) {
-                        HStack {
-                            Image(systemName: deviceIcon(for: device.name))
-                                .foregroundColor(.blue)
-                            VStack(alignment: .leading) {
-                                Text(device.name)
-                                Text("\(device.rssi) dBm")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                    } label: {
+                        HStack(spacing: 12) {
+                            // Device icon with background
+                            ZStack {
+                                Circle()
+                                    .fill(.blue.opacity(0.1))
+                                    .frame(width: 40, height: 40)
+
+                                Image(systemName: deviceIcon(for: device.name))
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.blue)
                             }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(device.name)
+                                    .font(.body.weight(.medium))
+
+                                // Signal strength indicator
+                                HStack(spacing: 4) {
+                                    SignalStrengthView(rssi: device.rssi)
+                                    Text(signalStrengthText(for: device.rssi))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
                             Spacer()
+
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
+                        .padding(.vertical, 4)
                     }
                     .buttonStyle(.plain)
                 }
@@ -218,36 +275,78 @@ struct DeviceScannerContainerView: View {
 
             // Footer
             HStack {
-                Button("Cancel") {
+                Button {
                     onDismiss()
+                } label: {
+                    Text("Cancel")
                 }
+
                 Spacer()
-                Button(viewModel.isScanning ? "Stop" : "Rescan") {
+
+                Button {
                     if viewModel.isScanning {
                         viewModel.stopScanning()
                     } else {
                         viewModel.startScanning()
                     }
+                } label: {
+                    Label(
+                        viewModel.isScanning ? "Stop" : "Rescan",
+                        systemImage: viewModel.isScanning ? "stop.fill" : "arrow.clockwise"
+                    )
                 }
+                .buttonStyle(.borderedProminent)
             }
             .padding()
         }
-        .frame(width: 330, height: 380)
+        .frame(width: 350, height: 400)
     }
 
     private func deviceIcon(for name: String) -> String {
         let lowered = name.lowercased()
-        if lowered.contains("iphone") {
-            return "iphone"
-        } else if lowered.contains("watch") {
-            return "applewatch"
-        } else if lowered.contains("ipad") {
-            return "ipad"
-        } else if lowered.contains("mac") {
-            return "laptopcomputer"
-        } else if lowered.contains("airpods") {
-            return "airpodspro"
-        }
+        if lowered.contains("iphone") { return "iphone" }
+        if lowered.contains("watch") { return "applewatch" }
+        if lowered.contains("ipad") { return "ipad" }
+        if lowered.contains("mac") { return "laptopcomputer" }
+        if lowered.contains("airpods") { return "airpodspro" }
         return "wave.3.right"
+    }
+
+    private func signalStrengthText(for rssi: Int) -> String {
+        if rssi >= -50 { return "Excellent" }
+        if rssi >= -60 { return "Good" }
+        if rssi >= -70 { return "Fair" }
+        return "Weak"
+    }
+}
+
+/// Visual signal strength indicator
+struct SignalStrengthView: View {
+    let rssi: Int
+
+    private var bars: Int {
+        if rssi >= -50 { return 4 }
+        if rssi >= -60 { return 3 }
+        if rssi >= -70 { return 2 }
+        return 1
+    }
+
+    private var color: Color {
+        switch bars {
+        case 4: return .green
+        case 3: return .green
+        case 2: return .yellow
+        default: return .orange
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<4, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(index < bars ? color : Color.gray.opacity(0.3))
+                    .frame(width: 3, height: CGFloat(4 + index * 2))
+            }
+        }
     }
 }

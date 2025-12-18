@@ -4,130 +4,253 @@
 
 import SwiftUI
 
-/// Menu bar dropdown content view
+/// Menu bar dropdown content view (window style)
 struct MenuBarView: View {
     @EnvironmentObject var alarmManager: AlarmStateManager
 
     var body: some View {
-        Group {
-            // Permission warning (when Accessibility not granted)
+        VStack(spacing: 0) {
+            // Permission warning
             if !alarmManager.hasAccessibilityPermission {
                 accessibilityWarning
-                Divider()
+                Divider().padding(.vertical, 8)
             }
 
-            // State-specific content
-            stateContent
+            // State section
+            stateSection
 
-            Divider()
+            Divider().padding(.vertical, 10)
 
-            // Trusted device status
+            // Trusted device section
             if let device = alarmManager.bluetoothManager.trustedDevice {
-                HStack {
-                    Image(systemName: device.isNearby ? "iphone.circle.fill" : "iphone.circle")
-                        .foregroundColor(device.isNearby ? .green : .secondary)
-                    Text(device.name)
-                        .foregroundColor(device.isNearby ? .green : .secondary)
-                }
-                Divider()
+                deviceSection(device)
+                Divider().padding(.vertical, 10)
             }
 
-            // Settings
-            Button("Settings...") {
-                // Dispatch async to ensure menu closes first
-                DispatchQueue.main.async {
-                    SettingsWindowController.shared.show(alarmManager: alarmManager)
-                }
-            }
-            .keyboardShortcut(",", modifiers: .command)
-
-            Divider()
-
-            // Quit
-            Button("Quit MacGuard") {
-                NSApplication.shared.terminate(nil)
-            }
-            .keyboardShortcut("q", modifiers: .command)
+            // Actions
+            actionsSection
         }
+        .padding(14)
+        .frame(width: 240)
     }
 
-    // MARK: - Subviews
+    // MARK: - Sections
 
     @ViewBuilder
     private var accessibilityWarning: some View {
-        Text("⚠️ Accessibility Required")
-            .foregroundColor(.orange)
-        Button("Grant Permission...") {
-            alarmManager.requestAccessibilityPermission()
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text("Accessibility Required")
+                .font(.subheadline.weight(.medium))
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        Button {
+            alarmManager.requestAccessibilityPermission()
+        } label: {
+            Text("Grant Permission...")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .padding(.top, 4)
     }
 
     @ViewBuilder
-    private var stateContent: some View {
+    private var stateSection: some View {
         switch alarmManager.state {
         case .idle:
-            idleContent
+            idleView
         case .armed:
-            armedContent
+            armedView
         case .triggered:
-            triggeredContent
+            triggeredView
         case .alarming:
-            alarmingContent
+            alarmingView
         }
     }
 
-    private var idleContent: some View {
-        Button("Arm MacGuard") {
+    private func deviceSection(_ device: TrustedDevice) -> some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(device.isNearby ? Color.green.opacity(0.15) : Color.secondary.opacity(0.1))
+                    .frame(width: 32, height: 32)
+                Image(systemName: deviceIcon(for: device.name))
+                    .font(.system(size: 14))
+                    .foregroundStyle(device.isNearby ? .green : .secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.name)
+                    .font(.subheadline.weight(.medium))
+                Text(device.isNearby ? "Nearby" : "Not detected")
+                    .font(.caption)
+                    .foregroundStyle(device.isNearby ? .green : .secondary)
+            }
+
+            Spacer()
+
+            if device.isNearby {
+                Circle()
+                    .fill(.green)
+                    .frame(width: 8, height: 8)
+            }
+        }
+    }
+
+    private var actionsSection: some View {
+        VStack(spacing: 8) {
+            Button {
+                SettingsWindowController.shared.show(alarmManager: alarmManager)
+            } label: {
+                HStack {
+                    Image(systemName: "gearshape")
+                    Text("Settings...")
+                    Spacer()
+                    Text("⌘,")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                HStack {
+                    Image(systemName: "power")
+                    Text("Quit MacGuard")
+                    Spacer()
+                    Text("⌘Q")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - State Views
+
+    private var idleView: some View {
+        Button {
             alarmManager.arm()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "shield.fill")
+                Text("Arm MacGuard")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+    }
+
+    private var armedView: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.title2)
+                    .foregroundStyle(.green)
+                Text("Protected")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                Spacer()
+                Circle()
+                    .fill(.green)
+                    .frame(width: 10, height: 10)
+            }
+
+            Button {
+                alarmManager.disarm()
+            } label: {
+                HStack {
+                    Image(systemName: "lock.open")
+                    Text("Disarm")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
         }
     }
 
-    @ViewBuilder
-    private var armedContent: some View {
-        HStack {
-            Image(systemName: "checkmark.shield.fill")
-                .foregroundColor(.green)
-            Text("Armed")
-                .foregroundColor(.green)
-        }
+    private var triggeredView: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.shield.fill")
+                    .font(.title2)
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Intrusion Detected")
+                        .font(.headline)
+                        .foregroundStyle(.orange)
+                    Text("\(alarmManager.countdownSeconds)s until alarm")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
 
-        Button("Disarm") {
-            alarmManager.disarm()
+            Button {
+                alarmManager.attemptBiometricDisarm { _ in }
+            } label: {
+                HStack {
+                    Image(systemName: "touchid")
+                    Text("Disarm with Touch ID")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+            .controlSize(.regular)
         }
     }
 
-    @ViewBuilder
-    private var triggeredContent: some View {
-        HStack {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.yellow)
-            Text("Countdown: \(alarmManager.countdownSeconds)s")
-                .foregroundColor(.yellow)
-        }
+    private var alarmingView: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "bell.badge.waveform.fill")
+                    .font(.title2)
+                    .foregroundStyle(.red)
+                Text("ALARM ACTIVE")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.red)
+                Spacer()
+            }
 
-        Button("Disarm (Touch ID)") {
-            alarmManager.attemptBiometricDisarm { _ in }
+            Button {
+                alarmManager.attemptBiometricDisarm { _ in }
+            } label: {
+                HStack {
+                    Image(systemName: "hand.raised.fill")
+                    Text("Stop Alarm")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .controlSize(.regular)
         }
     }
 
-    @ViewBuilder
-    private var alarmingContent: some View {
-        HStack {
-            Image(systemName: "bell.badge.fill")
-                .foregroundColor(.red)
-            Text("ALARM ACTIVE")
-                .foregroundColor(.red)
-                .fontWeight(.bold)
-        }
+    // MARK: - Helpers
 
-        Button("Stop Alarm (Auth Required)") {
-            alarmManager.attemptBiometricDisarm { _ in }
-        }
+    private func deviceIcon(for name: String) -> String {
+        let lowered = name.lowercased()
+        if lowered.contains("iphone") { return "iphone" }
+        if lowered.contains("watch") { return "applewatch" }
+        if lowered.contains("ipad") { return "ipad" }
+        if lowered.contains("airpods") { return "airpodspro" }
+        if lowered.contains("mac") { return "laptopcomputer" }
+        return "wave.3.right"
     }
 }
 
 #Preview {
     MenuBarView()
         .environmentObject(AlarmStateManager())
-        .frame(width: 200)
 }
