@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>MacGuard Updates</title>
+    <link>https://github.com/shenglong209/MacGuard</link>
+    <description>MacGuard anti-theft alarm for macOS</description>
+    <language>en</language>
+
+    <!-- Latest release will be added here by release script -->
+
+  </channel>
+</rss>

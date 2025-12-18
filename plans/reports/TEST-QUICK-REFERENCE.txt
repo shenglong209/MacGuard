@@ -1,0 +1,235 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║        MACGUARD PHASE 3 - QUICK TEST REFERENCE & ACTION ITEMS           ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+TEST EXECUTION DATE: 2025-12-18 16:11 UTC+7
+REPORT LOCATION: plans/reports/
+OVERALL STATUS: FAIL (1 critical issue found)
+
+──────────────────────────────────────────────────────────────────────────
+TEST RESULTS AT A GLANCE
+──────────────────────────────────────────────────────────────────────────
+
+APPCAST.XML:
+  ✓ Valid XML 1.0
+  ✓ RSS 2.0 compliant
+  ✓ Sparkle namespace registered
+  ✓ Ready for item insertion
+  Location: /Users/shenglong/DATA/XProject/MacGuard/appcast.xml
+
+RELEASE.SH:
+  ✓ Valid bash syntax (bash -n passes)
+  ✓ Proper error handling (set -e)
+  ✓ File checks in place
+  ✗ FAILS AT RUNTIME - awk incompatibility with macOS
+  Location: /Users/shenglong/DATA/XProject/MacGuard/scripts/release.sh
+  Lines 83-92: CRITICAL BUG
+
+SPARKLE TOOLS:
+  ✓ sign_update present & executable
+  ✓ Universal binary (arm64/x86_64)
+  ✓ All supporting tools present
+  Location: .build/artifacts/sparkle/Sparkle/bin/
+
+BUILD STATUS:
+  ✓ Compiles successfully (0.35s)
+  ✓ No warnings or errors
+  ✓ New files don't break build
+
+GIT/GITHUB:
+  ✓ Repository initialized
+  ✓ gh CLI installed and functional
+
+──────────────────────────────────────────────────────────────────────────
+CRITICAL ISSUE: macOS AWK INCOMPATIBILITY
+──────────────────────────────────────────────────────────────────────────
+
+WHAT:      BSD awk cannot handle multiline strings via -v option
+WHERE:     release.sh lines 83-92 (appcast.xml insertion)
+SEVERITY:  CRITICAL - Script will crash, release incomplete
+ERROR:     "awk: newline in string ... at source line 1"
+IMPACT:    appcast.xml won't update, git operations won't run
+
+CONSEQUENCE IF NOT FIXED:
+  Step 3: DMG signing works ✓
+  Step 8: GitHub release works ✓
+  Step 7: appcast update FAILS ✗
+  Step 9: Git push never executes ✗
+  Result: Release broken, no auto-update
+
+──────────────────────────────────────────────────────────────────────────
+IMMEDIATE ACTION REQUIRED (Do This First)
+──────────────────────────────────────────────────────────────────────────
+
+1. Open: /Users/shenglong/DATA/XProject/MacGuard/scripts/release.sh
+
+2. Find lines 83-92 (the awk command):
+   awk -v item="$ITEM" '
+     /<\/language>/ { ... }
+   ' "$APPCAST_PATH" > "$APPCAST_PATH.tmp"
+
+3. Replace with sed approach (OPTION 1 - Recommended):
+   sed "/<\/language>/a\\
+   \\
+   [item content here]" "$APPCAST_PATH" > "$APPCAST_PATH.tmp"
+
+4. Detailed replacement code: See tester-251218-1611-GH-3-awk-fix-reference.md
+
+5. Test the fix:
+   - Run: swift build -c debug (should still work)
+   - Validate: xmllint --noout appcast.xml (should pass)
+
+──────────────────────────────────────────────────────────────────────────
+TEST PASS/FAIL SUMMARY (19 Total Tests)
+──────────────────────────────────────────────────────────────────────────
+
+Category                        Tests  Pass  Fail  Status
+─────────────────────────────────────────────────────────
+appcast.xml XML validation        3     3     0   ✓
+release.sh bash syntax            2     2     0   ✓
+File presence checks              4     4     0   ✓
+Sparkle tool integration          6     6     0   ✓
+Build process                     1     1     0   ✓
+Script execution logic            3     1     2   ✗
+─────────────────────────────────────────────────────────
+TOTAL                            19    17     2   ✗ FAIL
+
+Pass Rate: 89% (17/19)
+Production Ready: NO
+
+──────────────────────────────────────────────────────────────────────────
+WHAT WORKS (Don't Change These)
+──────────────────────────────────────────────────────────────────────────
+
+✓ appcast.xml structure and namespace
+✓ release.sh argument parsing
+✓ Version to BuildNum conversion (e.g., 1.2.0 → 120)
+✓ ED signature extraction from sign_update output
+✓ Date formatting (RFC 2822)
+✓ XML item template generation
+✓ DMG file existence checks
+✓ Sparkle tools existence checks
+✓ GitHub CLI integration
+✓ Git operations setup
+
+──────────────────────────────────────────────────────────────────────────
+WHAT NEEDS FIXING (Priority Order)
+──────────────────────────────────────────────────────────────────────────
+
+1. CRITICAL - Fix awk incompatibility (15-30 mins)
+   • Replace awk with sed in lines 83-92
+   • Test with mock appcast.xml
+   • Verify output is valid XML
+
+2. HIGH - Add integration test (30-60 mins)
+   • Create test case that runs release.sh
+   • Mock DMG and GitHub operations
+   • Verify all steps execute
+
+3. HIGH - Add error recovery (30-45 mins)
+   • Add trap handlers for cleanup
+   • Better error messages
+   • Log intermediate results
+
+4. MEDIUM - Documentation (15-30 mins)
+   • Update README.md with release procedures
+   • Document prerequisites
+   • Add troubleshooting
+
+──────────────────────────────────────────────────────────────────────────
+HOW TO VERIFY THE FIX WORKS
+──────────────────────────────────────────────────────────────────────────
+
+After applying sed fix:
+
+1. Test syntax remains valid:
+   bash -n scripts/release.sh
+
+2. Test with mock parameters:
+   cp appcast.xml appcast.xml.backup
+   ./scripts/release.sh 1.0.0  # Will fail at DMG check but test awk/sed
+
+3. Verify appcast.xml updated:
+   grep "sparkle:version" appcast.xml | head -1
+
+4. Validate XML output:
+   xmllint --noout appcast.xml
+   echo "XML valid: $?"  # Should print 0
+
+5. Check content is correct:
+   grep -A 5 "sparkle:version" appcast.xml  # Verify structure
+
+──────────────────────────────────────────────────────────────────────────
+DETAILED REPORTS AVAILABLE
+──────────────────────────────────────────────────────────────────────────
+
+1. tester-251218-1611-GH-3-phase3-sparkle-release.md (13 KB)
+   → Comprehensive test results with all 19 test details
+   → Critical issue analysis
+   → Recommendations and next steps
+
+2. tester-251218-1611-GH-3-awk-fix-reference.md (7.6 KB)
+   → Problem explanation with error details
+   → 3 solution approaches with code
+   → Testing procedures
+   → Impact assessment
+
+Both located in: /Users/shenglong/DATA/XProject/MacGuard/plans/reports/
+
+──────────────────────────────────────────────────────────────────────────
+KEY METRICS
+──────────────────────────────────────────────────────────────────────────
+
+Test Coverage:     89% (17/19 passing)
+Build Success:     Yes (0.35 seconds)
+XML Validity:      Yes (appcast.xml valid)
+Script Syntax:     Yes (bash -n passes)
+Runtime Ready:     No (awk issue)
+Production Ready:  No (critical bug)
+
+──────────────────────────────────────────────────────────────────────────
+FILES CHECKED
+──────────────────────────────────────────────────────────────────────────
+
+appcast.xml
+  ✓ Valid XML with correct structure
+  ✓ Sparkle namespace properly declared
+  ✓ Ready for automated item insertion
+
+release.sh
+  ✓ Valid bash syntax
+  ✓ Proper shebang (#!/bin/bash)
+  ✓ Error handling with set -e
+  ✗ awk command will fail at runtime
+
+.build/artifacts/sparkle/Sparkle/bin/sign_update
+  ✓ Present and executable
+  ✓ Universal binary (arm64 + x86_64)
+
+──────────────────────────────────────────────────────────────────────────
+UNRESOLVED QUESTIONS
+──────────────────────────────────────────────────────────────────────────
+
+Q1: Is awk limitation documented?
+    → No documentation found
+
+Q2: Are there release.sh execution tests in CI/CD?
+    → No test cases found
+
+Q3: Is there fallback for GitHub API failures?
+    → Script uses set -e (no recovery)
+
+──────────────────────────────────────────────────────────────────────────
+CONTACT & NEXT STEPS
+──────────────────────────────────────────────────────────────────────────
+
+Status:       BLOCKED on awk fix
+Next Action:  Implement sed-based solution (See fix reference)
+Est. Time:    15-30 minutes for fix + testing
+Then:         Add integration tests to prevent regression
+
+Test completed: 2025-12-18 16:12:48 UTC+7
+Tester: QA Automation Suite
+Platform: macOS 25.2.0 (Darwin)
+awk version: 20200816 (BSD - problematic)
+
