@@ -21,7 +21,8 @@ let package = Package(
             exclude: [
                 "Info.plist",
                 "MacGuard.entitlements",
-                "Package.swift"
+                "Package.swift",
+                "README.md"
             ],
             sources: [
                 "MacGuardApp.swift",

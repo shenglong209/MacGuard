@@ -10,117 +10,228 @@ struct SettingsView: View {
     @ObservedObject var alarmManager: AlarmStateManager
 
     var body: some View {
-        Form {
-            // Permissions Section
-            Section("Permissions") {
-                permissionRow(
-                    title: "Accessibility",
-                    granted: alarmManager.hasAccessibilityPermission,
-                    action: { alarmManager.requestAccessibilityPermission() }
-                )
-
-                permissionRow(
-                    title: "Bluetooth",
-                    granted: alarmManager.bluetoothManager.isBluetoothEnabled,
-                    action: { openBluetoothSettings() }
-                )
-            }
-
-            // Trusted Device Section
-            Section("Trusted Device") {
-                if let device = alarmManager.bluetoothManager.trustedDevice {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(device.name)
-                                .font(.headline)
-                            if let rssi = device.lastRSSI {
-                                Text("\(rssi) dBm")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        Spacer()
-                        if device.isNearby {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                        }
-                        Button("Remove") {
-                            alarmManager.bluetoothManager.removeTrustedDevice()
-                        }
-                        .buttonStyle(.bordered)
-                    }
+        VStack(spacing: 0) {
+            // Header with app icon and status
+            HStack(spacing: 16) {
+                // App icon
+                if let iconImage = loadAppIcon() {
+                    Image(nsImage: iconImage)
+                        .resizable()
+                        .frame(width: 64, height: 64)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                 } else {
-                    Text("No trusted device configured")
-                        .foregroundColor(.secondary)
-                    Button("Scan for Devices...") {
-                        DeviceScannerWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-
-            // Security Section
-            Section("Security") {
-                HStack {
-                    Text("Backup PIN")
-                    Spacer()
-                    if alarmManager.authManager.hasPIN {
-                        Text("Set")
-                            .foregroundColor(.green)
-                        Button("Change") {
-                            PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
-                        }
-                    } else {
-                        Button("Set PIN") {
-                            PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.blue)
                 }
 
-                HStack {
-                    Text("Touch ID")
-                    Spacer()
-                    if alarmManager.authManager.hasBiometrics {
-                        Text("Available")
-                            .foregroundColor(.green)
-                    } else {
-                        Text("Not available")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("MacGuard")
+                        .font(.title.bold())
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(alarmManager.state == .idle ? Color.gray : Color.green)
+                            .frame(width: 8, height: 8)
+                        Text(alarmManager.state == .idle ? "Disarmed" : "Protected")
+                            .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
                 }
-            }
 
-            // Startup Section
-            Section("Startup") {
-                LaunchAtLoginToggle()
+                Spacer()
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(Color(nsColor: .windowBackgroundColor))
 
-            // About Section
-            Section("About") {
-                LabeledContent("Version", value: "1.0.0")
-                LabeledContent("macOS", value: "13.0+ (Ventura)")
+            Divider()
+
+            Form {
+                // Permissions Section
+                Section {
+                    permissionRow(
+                        icon: "hand.raised.fill",
+                        title: "Accessibility",
+                        subtitle: "Required for input monitoring",
+                        granted: alarmManager.hasAccessibilityPermission,
+                        action: { alarmManager.requestAccessibilityPermission() }
+                    )
+
+                    permissionRow(
+                        icon: "antenna.radiowaves.left.and.right",
+                        title: "Bluetooth",
+                        subtitle: "For proximity detection",
+                        granted: alarmManager.bluetoothManager.isBluetoothEnabled,
+                        action: { openBluetoothSettings() }
+                    )
+                } header: {
+                    Label("Permissions", systemImage: "checkmark.shield")
+                }
+
+                // Trusted Device Section
+                Section {
+                    if let device = alarmManager.bluetoothManager.trustedDevice {
+                        HStack(spacing: 12) {
+                            Image(systemName: deviceIcon(for: device.name))
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(device.name)
+                                    .font(.headline)
+                                if let rssi = device.lastRSSI {
+                                    Text("Signal: \(rssi) dBm")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            Spacer()
+                            if device.isNearby {
+                                Label("Nearby", systemImage: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                            Button("Remove") {
+                                alarmManager.bluetoothManager.removeTrustedDevice()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("No trusted device configured")
+                                .foregroundColor(.secondary)
+                            Button {
+                                DeviceScannerWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
+                            } label: {
+                                Label("Scan for Devices", systemImage: "wave.3.right")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                } header: {
+                    Label("Trusted Device", systemImage: "iphone")
+                }
+
+                // Security Section
+                Section {
+                    HStack(spacing: 12) {
+                        Image(systemName: "number.square.fill")
+                            .font(.title2)
+                            .foregroundColor(.orange)
+                            .frame(width: 32)
+                        Text("Backup PIN")
+                        Spacer()
+                        if alarmManager.authManager.hasPIN {
+                            Label("Configured", systemImage: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                            Button("Change") {
+                                PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
+                            }
+                            .controlSize(.small)
+                        } else {
+                            Button("Set PIN") {
+                                PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "touchid")
+                            .font(.title2)
+                            .foregroundColor(.pink)
+                            .frame(width: 32)
+                        Text("Touch ID")
+                        Spacer()
+                        if alarmManager.authManager.hasBiometrics {
+                            Label("Available", systemImage: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        } else {
+                            Text("Not available")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Label("Security", systemImage: "lock.fill")
+                }
+
+                // Startup Section
+                Section {
+                    LaunchAtLoginToggle()
+                } header: {
+                    Label("Startup", systemImage: "power")
+                }
+
+                // About Section
+                Section {
+                    LabeledContent("Version", value: "1.0.0")
+                    LabeledContent("macOS", value: "13.0+ (Ventura)")
+                    Link(destination: URL(string: "https://github.com/shenglong209/MacGuard")!) {
+                        HStack {
+                            Text("GitHub Repository")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Label("About", systemImage: "info.circle")
+                }
             }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
-        .frame(width: 400, height: 500)
+        .frame(width: 420, height: 580)
     }
 
-    // MARK: - Helper Views
+    // MARK: - Helper Functions
+
+    private func loadAppIcon() -> NSImage? {
+        guard let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png", subdirectory: "Resources"),
+              let image = NSImage(contentsOf: url) else {
+            return nil
+        }
+        return image
+    }
+
+    private func deviceIcon(for name: String) -> String {
+        let lowered = name.lowercased()
+        if lowered.contains("iphone") { return "iphone" }
+        if lowered.contains("watch") { return "applewatch" }
+        if lowered.contains("ipad") { return "ipad" }
+        if lowered.contains("airpods") { return "airpodspro" }
+        return "wave.3.right"
+    }
 
     @ViewBuilder
-    private func permissionRow(title: String, granted: Bool, action: @escaping () -> Void) -> some View {
-        HStack {
-            Text(title)
+    private func permissionRow(icon: String, title: String, subtitle: String, granted: Bool, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(granted ? .green : .blue)
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
             Spacer()
             if granted {
-                Image(systemName: "checkmark.circle.fill")
+                Label("Granted", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
                     .foregroundColor(.green)
             } else {
                 Button("Grant") {
                     action()
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.small)
             }
         }
     }
