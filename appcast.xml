@@ -5,6 +5,24 @@
     <link>https://github.com/shenglong209/MacGuard</link>
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
+    <item>
+      <title>Version 1.2.0</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.2.0</link>
+      <sparkle:version>120</sparkle:version>
+      <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 1.2.0</h3>
+        <p>See release notes on GitHub.</p>
+      ]]></description>
+      <pubDate>qui, 18 dez 2025 16:26:12 +0700</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v1.2.0/MacGuard-1.2.0.dmg"
+        sparkle:edSignature="aMI1Xkkhb3d0zqbCDQDKX6i7lQroO5qIDqZaeYDeaSKi5jqb0R2aoevnHF8fv2nTJWi8A4iY4bQob1cVdo0SDw=="
+        length="2410584"
+        type="application/octet-stream"
+      />
+    </item>
 
     <!-- Latest release will be added here by release script -->
 
