@@ -70,7 +70,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
     <key>CFBundleVersion</key>
     <string>${VERSION//./}</string>
     <key>SUFeedURL</key>
-    <string>https://cdn.jsdelivr.net/gh/shenglong209/MacGuard@main/appcast.xml</string>
+    <string>https://raw.githubusercontent.com/shenglong209/MacGuard/main/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>I7s26R56gqkm2GqhPOLdjcyK4YGcuEbSWsRBTEumlb8=</string>
     <key>SUEnableAutomaticChecks</key>

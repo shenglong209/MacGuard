@@ -117,11 +117,6 @@ git add "$APPCAST_PATH"
 git commit -m "chore: update appcast for v${VERSION}"
 git push
 
-# Step 10: Purge jsdelivr cache
-echo "🔄 Purging jsdelivr cache..."
-curl -s "https://purge.jsdelivr.net/gh/shenglong209/MacGuard@main/appcast.xml" > /dev/null
-echo "✅ CDN cache purged"
-
 echo ""
 echo "=== Release Complete ==="
 echo "✅ DMG signed and uploaded"
