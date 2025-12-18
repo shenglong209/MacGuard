@@ -50,8 +50,8 @@ fi
 echo "✅ EdDSA Signature: ${ED_SIGNATURE:0:20}..."
 echo "✅ File Length: $FILE_LENGTH bytes"
 
-# Step 4: Get current date in RFC 822 format (macOS compatible)
-PUB_DATE=$(date "+%a, %d %b %Y %H:%M:%S %z")
+# Step 4: Get current date in RFC 822 format (English locale required)
+PUB_DATE=$(LC_TIME=C date "+%a, %d %b %Y %H:%M:%S %z")
 
 # Step 5: Calculate build number from version (e.g., 1.2.0 -> 120)
 BUILD_NUM=${VERSION//./}
