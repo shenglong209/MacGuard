@@ -247,6 +247,14 @@ struct SettingsView: View {
                 Section {
                     LabeledContent("Version", value: "1.2.0")
                     LabeledContent("macOS", value: "13.0+ (Ventura)")
+
+                    // Check for Updates button
+                    HStack {
+                        Text("Updates")
+                        Spacer()
+                        CheckForUpdatesButton()
+                    }
+
                     Link(destination: URL(string: "https://github.com/shenglong209/MacGuard")!) {
                         HStack {
                             Text("GitHub Repository")
@@ -546,6 +554,19 @@ enum LaunchAtLoginManager {
                 print("[LaunchAtLogin] Failed to update: \(error)")
             }
         }
+    }
+}
+
+// MARK: - Check for Updates Button
+
+struct CheckForUpdatesButton: View {
+    @ObservedObject private var updateManager = UpdateManager.shared
+
+    var body: some View {
+        Button("Check for Updates...") {
+            updateManager.checkForUpdates()
+        }
+        .disabled(!updateManager.canCheckForUpdates)
     }
 }
 

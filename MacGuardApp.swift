@@ -9,6 +9,9 @@ import SwiftUI
 struct MacGuardApp: App {
     @StateObject private var alarmManager = AlarmStateManager()
 
+    // Initialize update manager (starts Sparkle auto-update)
+    private let updateManager = UpdateManager.shared
+
     var body: some Scene {
         // Menu bar app (no main window)
         MenuBarExtra {
