@@ -9,6 +9,7 @@ Anti-theft alarm app for macOS. Protects your laptop in public places by trigger
 - **Menu Bar App** - Runs silently in the background with custom styled dropdown
 - **Input Monitoring** - Detects keyboard, mouse, and trackpad activity
 - **Sleep/Power Detection** - Triggers on lid close or power disconnect
+- **Lid Close Alarm** - Instant alarm when lid closes (requires admin, prevents sleep)
 - **Bluetooth Proximity** - Auto-disarm when paired device (iPhone/AirPods) is nearby
 - **Touch ID + PIN** - Secure authentication to disarm
 - **Configurable Alarm** - Choose from 14 system sounds, custom audio files, or bundled "Don't Touch My Mac"
@@ -58,6 +59,7 @@ The binary will be at `.build/release/MacGuard`
 
 4. **Configure Behavior** (optional)
    - Toggle "Lock screen when armed" on/off
+   - Enable "Lid close alarm" for instant alarm on lid close (requires admin password)
    - Choose alarm sound (system sounds, custom file, or bundled)
    - Adjust volume and preview with 🔊 button
 
@@ -128,6 +130,7 @@ MacGuard/
 |------------|---------|
 | Accessibility | Global input monitoring via CGEventTap |
 | Bluetooth | Trusted device proximity detection |
+| Administrator | Lid close alarm (pmset disablesleep) |
 
 ## License
 
