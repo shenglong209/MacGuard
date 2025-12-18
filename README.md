@@ -4,13 +4,14 @@ Anti-theft alarm app for macOS. Protects your laptop in public places by trigger
 
 ## Features
 
-- **Menu Bar App** - Runs silently in the background
+- **Menu Bar App** - Runs silently in the background with custom styled dropdown
 - **Input Monitoring** - Detects keyboard, mouse, and trackpad activity
 - **Sleep/Power Detection** - Triggers on lid close or power disconnect
-- **Bluetooth Proximity** - Auto-disarm when trusted device (iPhone/AirPods) is nearby
+- **Bluetooth Proximity** - Auto-disarm when paired device (iPhone/AirPods) is nearby
 - **Touch ID + PIN** - Secure authentication to disarm
-- **Loud Alarm** - Plays at maximum volume, unmutes system
-- **Auto-Lock** - Locks screen when armed
+- **Configurable Alarm** - Choose from 14 system sounds, custom audio files, or bundled "Don't Touch My Mac"
+- **Auto-Lock** - Optional screen lock when armed (configurable)
+- **Volume Control** - Adjustable alarm volume with preview
 
 ## Requirements
 
@@ -44,7 +45,8 @@ The binary will be at `.build/release/MacGuard`
    - Enable MacGuard in System Preferences → Privacy & Security → Accessibility
 
 2. **Configure Trusted Device** (optional)
-   - Click "Scan for Devices..."
+   - Click "Scan for Devices..." in Settings
+   - Shows only devices paired with your Mac
    - Select your iPhone, AirPods, or Apple Watch
    - Device will auto-disarm alarm when nearby
 
@@ -52,12 +54,17 @@ The binary will be at `.build/release/MacGuard`
    - Click "Set PIN" in Security section
    - Enter 4-8 digit PIN
 
-4. **Arm MacGuard**
+4. **Configure Behavior** (optional)
+   - Toggle "Lock screen when armed" on/off
+   - Choose alarm sound (system sounds, custom file, or bundled)
+   - Adjust volume and preview with 🔊 button
+
+5. **Arm MacGuard**
    - Click "Arm MacGuard" from menu bar
-   - Screen locks automatically
+   - Screen locks automatically (if enabled)
    - Any input triggers 3-second countdown
 
-5. **Disarm**
+6. **Disarm**
    - Touch ID (if available)
    - Enter PIN
    - Trusted device proximity (automatic)
@@ -105,9 +112,12 @@ MacGuard/
 │   └── DeviceScannerView.swift      # Bluetooth scanner
 ├── Models/
 │   ├── AlarmState.swift
-│   └── TrustedDevice.swift
+│   ├── TrustedDevice.swift
+│   └── AppSettings.swift          # User preferences
 └── Resources/
-    └── alarm.aiff
+    ├── AppIcon.png
+    ├── MenuBarIcon.png
+    └── dont-touch-my-mac.mp3      # Bundled alarm sound
 ```
 
 ## Permissions
