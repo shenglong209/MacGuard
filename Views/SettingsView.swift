@@ -245,7 +245,7 @@ struct SettingsView: View {
 
                 // About Section
                 Section {
-                    LabeledContent("Version", value: "1.2.0")
+                    LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown")
                     LabeledContent("macOS", value: "13.0+ (Ventura)")
 
                     // Check for Updates button
