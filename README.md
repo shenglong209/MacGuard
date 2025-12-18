@@ -1,5 +1,7 @@
 # MacGuard
 
+![MacGuard Featured Image](featured-image.png)
+
 Anti-theft alarm app for macOS. Protects your laptop in public places by triggering a loud alarm when unauthorized access is detected.
 
 ## Features
