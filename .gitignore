@@ -15,3 +15,6 @@ Package.resolved
 # IDE
 .idea/
 *.xcuserstate
+
+# Release artifacts
+dist/
