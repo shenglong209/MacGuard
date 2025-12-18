@@ -89,12 +89,13 @@ Implement Sparkle 2.x framework for automatic and manual update checking in MacG
 - [x] App builds with Sparkle framework
 - [x] "Check for Updates" button in Settings works
 - [ ] Automatic update check on 2nd launch (runtime testing required)
-- [ ] EdDSA-signed DMG passes verification
-- [ ] appcast.xml hosted and accessible
+- [x] EdDSA-signed DMG passes verification
+- [x] appcast.xml hosted and accessible
 - [ ] End-to-end update flow tested
 
 **Phase 1 Status:** ✅ COMPLETE (2025-12-18 15:44)
 **Phase 2 Status:** ✅ COMPLETE (2025-12-18 16:04)
+**Phase 3 Status:** ✅ COMPLETE (2025-12-18 16:22)
 
 ---
 

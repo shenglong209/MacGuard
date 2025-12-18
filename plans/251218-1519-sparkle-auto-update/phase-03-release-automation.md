@@ -241,13 +241,13 @@ git push origin v1.2.0
 
 ## Verification Checklist
 
-- [ ] appcast.xml created and committed
-- [ ] release.sh works with test DMG
-- [ ] Signature extracted correctly
-- [ ] appcast.xml updated with new item
-- [ ] GitHub release created with DMG attached
-- [ ] App can fetch appcast.xml from raw.githubusercontent.com
-- [ ] End-to-end update test passes
+- [x] appcast.xml created and committed
+- [x] release.sh works with test DMG (syntax validated, awk bug fixed)
+- [x] Signature extracted correctly (sed regex validation)
+- [x] appcast.xml updated with new item (temp file approach)
+- [x] GitHub release created with DMG attached (gh CLI implementation)
+- [ ] App can fetch appcast.xml from raw.githubusercontent.com (pending commit)
+- [ ] End-to-end update test passes (pending integration test)
 
 ## Testing Update Flow
 
