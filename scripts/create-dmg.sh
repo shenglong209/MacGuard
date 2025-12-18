@@ -2,7 +2,7 @@
 set -e
 
 APP_NAME="MacGuard"
-VERSION="1.0.0"
+VERSION="1.1.0"
 BUNDLE_ID="com.shenglong.macguard"
 
 # Paths
