@@ -1,9 +1,18 @@
 #!/bin/bash
+# create-dmg.sh - Create MacGuard DMG for distribution
+# Usage: ./scripts/create-dmg.sh VERSION
+# Example: ./scripts/create-dmg.sh 1.2.0
 set -e
 
 APP_NAME="MacGuard"
-VERSION="1.1.0"
+VERSION="${1:-1.2.0}"
 BUNDLE_ID="com.shenglong.macguard"
+
+if [ -z "$1" ]; then
+    echo "Usage: ./scripts/create-dmg.sh VERSION"
+    echo "Example: ./scripts/create-dmg.sh 1.2.0"
+    exit 1
+fi
 
 # Paths
 BUILD_DIR=".build/release"
@@ -49,7 +58,17 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
     <key>CFBundleShortVersionString</key>
     <string>$VERSION</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>${VERSION//./}</string>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/shenglong209/MacGuard/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>I7s26R56gqkm2GqhPOLdjcyK4YGcuEbSWsRBTEumlb8=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+    <key>SUShowReleaseNotes</key>
+    <true/>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
