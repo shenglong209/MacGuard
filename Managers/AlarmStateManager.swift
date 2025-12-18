@@ -28,6 +28,7 @@ class AlarmStateManager: ObservableObject {
     // MARK: - Private Properties
 
     private var countdownTimer: Timer?
+    private var permissionCheckTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private let inputMonitor = InputMonitor()
     private let sleepMonitor = SleepMonitor()
@@ -48,6 +49,7 @@ class AlarmStateManager: ObservableObject {
         powerMonitor.delegate = self
         bluetoothManager.delegate = self
         checkPermissions()
+        startPermissionPolling()
 
         // Forward bluetoothManager changes to trigger view updates
         bluetoothManager.$trustedDevice
@@ -61,15 +63,34 @@ class AlarmStateManager: ObservableObject {
     /// Check current accessibility permission status
     func checkPermissions() {
         hasAccessibilityPermission = InputMonitor.hasAccessibilityPermission()
+        // Stop polling once permission is granted
+        if hasAccessibilityPermission {
+            stopPermissionPolling()
+        }
+    }
+
+    /// Start polling for permission changes (when permission not yet granted)
+    private func startPermissionPolling() {
+        guard !hasAccessibilityPermission else { return }
+        permissionCheckTimer?.invalidate()
+        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.checkPermissions()
+            }
+        }
+    }
+
+    /// Stop permission polling
+    private func stopPermissionPolling() {
+        permissionCheckTimer?.invalidate()
+        permissionCheckTimer = nil
     }
 
     /// Request accessibility permission from user
     func requestAccessibilityPermission() {
         InputMonitor.requestAccessibilityPermission()
-        // Check again after a delay (user may grant permission)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            self?.checkPermissions()
-        }
+        // Start polling for permission changes (user may grant in System Preferences)
+        startPermissionPolling()
     }
 
     // MARK: - State Transitions
