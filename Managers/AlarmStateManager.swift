@@ -78,6 +78,9 @@ class AlarmStateManager: ObservableObject {
     func arm() {
         guard state == .idle else { return }
 
+        // Pre-load audio for instant playback
+        audioManager.prepare()
+
         // Lock screen if enabled in settings
         if AppSettings.shared.autoLockOnArm {
             lockScreen()
@@ -147,8 +150,9 @@ class AlarmStateManager: ObservableObject {
         powerMonitor.stopMonitoring()
         bluetoothManager.stopScanning()
 
-        // Stop audio and hide overlay
+        // Stop audio, release pre-loaded audio, and hide overlay
         audioManager.stopAlarm()
+        audioManager.unprepare()
         overlayController.hide()
 
         state = .idle

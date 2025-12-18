@@ -12,6 +12,39 @@ class AlarmAudioManager: ObservableObject {
     private var audioPlayer: AVAudioPlayer?
     private var originalVolume: Float = 0.5
     private var beepTimer: Timer?
+    private var isPrepared = false
+
+    // MARK: - Preparation
+
+    /// Pre-load audio file so it's ready for instant playback
+    func prepare() {
+        guard !isPrepared else { return }
+
+        let settings = AppSettings.shared
+        if let soundPath = settings.effectiveSoundPath,
+           FileManager.default.fileExists(atPath: soundPath) {
+            do {
+                audioPlayer = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: soundPath))
+                audioPlayer?.numberOfLoops = -1
+                audioPlayer?.volume = 1.0
+                audioPlayer?.prepareToPlay()
+                isPrepared = true
+                print("[Alarm] Audio pre-loaded and ready")
+            } catch {
+                print("[Alarm] Failed to pre-load audio: \(error)")
+            }
+        }
+    }
+
+    /// Release pre-loaded audio
+    func unprepare() {
+        if !isPlaying {
+            audioPlayer?.stop()
+            audioPlayer = nil
+            isPrepared = false
+            print("[Alarm] Audio released")
+        }
+    }
 
     // MARK: - Playback
 
@@ -30,8 +63,12 @@ class AlarmAudioManager: ObservableObject {
         // Unmute if muted
         unmuteSpeaker()
 
-        // Use configured alarm sound (custom or system)
-        if let soundPath = settings.effectiveSoundPath,
+        // Use pre-loaded player if available, otherwise load now
+        if isPrepared, let player = audioPlayer {
+            player.play()
+            isPlaying = true
+            print("[Alarm] Playing alarm sound (pre-loaded)")
+        } else if let soundPath = settings.effectiveSoundPath,
            FileManager.default.fileExists(atPath: soundPath) {
             playAudioFile(URL(fileURLWithPath: soundPath))
         } else {
@@ -48,6 +85,7 @@ class AlarmAudioManager: ObservableObject {
         beepTimer?.invalidate()
         beepTimer = nil
         isPlaying = false
+        isPrepared = false
 
         // Restore original volume
         setSystemVolume(originalVolume)
@@ -62,6 +100,7 @@ class AlarmAudioManager: ObservableObject {
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.numberOfLoops = -1 // Loop forever
             audioPlayer?.volume = 1.0
+            audioPlayer?.prepareToPlay() // Pre-load audio buffers
             audioPlayer?.play()
             isPlaying = true
             print("[Alarm] Playing alarm sound")
