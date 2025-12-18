@@ -52,9 +52,10 @@ struct SettingsView: View {
                 } else {
                     Text("No trusted device configured")
                         .foregroundColor(.secondary)
-                    Text("Pair your iPhone or Apple Watch via Bluetooth settings")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Button("Scan for Devices...") {
+                        DeviceScannerWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
             }
 

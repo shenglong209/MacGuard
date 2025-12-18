@@ -66,6 +66,11 @@ class BluetoothProximityManager: NSObject, ObservableObject {
         print("[Bluetooth] Trusted device removed")
     }
 
+    /// Reload trusted device from UserDefaults (called after external update)
+    func reloadTrustedDevice() {
+        loadTrustedDevice()
+    }
+
     private func loadTrustedDevice() {
         guard let data = UserDefaults.standard.data(forKey: trustedDeviceKey),
               let device = try? JSONDecoder().decode(TrustedDevice.self, from: data) else {

@@ -299,9 +299,9 @@ extension AlarmStateManager: PowerMonitorDelegate {
 extension AlarmStateManager: BluetoothProximityDelegate {
     nonisolated func trustedDeviceNearby(_ device: TrustedDevice) {
         Task { @MainActor in
-            // Auto-disarm if in triggered state
-            if self.state == .triggered {
-                print("[MacGuard] Trusted device detected during countdown - auto-disarming")
+            // Auto-disarm if in triggered or alarming state
+            if self.state == .triggered || self.state == .alarming {
+                print("[MacGuard] Trusted device detected - auto-disarming")
                 self.disarm()
             }
         }
