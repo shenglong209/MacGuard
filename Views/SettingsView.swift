@@ -166,28 +166,6 @@ struct SettingsView: View {
                 Section {
                     Toggle("Lock screen when armed", isOn: $settings.autoLockOnArm)
 
-                    // Lid Close Protection with warning
-                    VStack(alignment: .leading, spacing: 6) {
-                        Toggle("Lid close alarm (requires admin)", isOn: $settings.lidCloseProtection)
-
-                        if settings.lidCloseProtection {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Mac won't sleep when lid closes while armed")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text("Requires password prompt when arming")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .padding(.leading, 4)
-                        }
-                    }
-
                     Picker("Alarm Sound", selection: Binding(
                         get: { settings.alarmSound },
                         set: { newValue in
@@ -245,7 +223,7 @@ struct SettingsView: View {
 
                 // About Section
                 Section {
-                    LabeledContent("Version", value: "1.1.0")
+                    LabeledContent("Version", value: "1.0.0")
                     LabeledContent("macOS", value: "13.0+ (Ventura)")
                     Link(destination: URL(string: "https://github.com/shenglong209/MacGuard")!) {
                         HStack {

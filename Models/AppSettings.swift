@@ -63,63 +63,6 @@ class AppSettings: ObservableObject {
     @AppStorage("alarmSound") private var alarmSoundRaw: String = AlarmSound.dontTouchMyMac.rawValue
     @AppStorage("alarmVolume") var alarmVolume: Double = 1.0
     @AppStorage("customSoundPath") var customSoundPath: String = ""
-    @AppStorage("lidCloseProtection") private var _lidCloseProtection: Bool = false
-
-    /// Lid close protection with pmset control
-    var lidCloseProtection: Bool {
-        get { _lidCloseProtection }
-        set {
-            if newValue && !_lidCloseProtection {
-                // Enabling - ask for admin password
-                if enableDisableSleep() {
-                    _lidCloseProtection = true
-                    objectWillChange.send()
-                }
-                // If failed, don't change the setting
-            } else if !newValue && _lidCloseProtection {
-                // Disabling - ask for admin password
-                disableDisableSleep()
-                _lidCloseProtection = false
-                objectWillChange.send()
-            }
-        }
-    }
-
-    /// Enable pmset disablesleep (with admin prompt)
-    private func enableDisableSleep() -> Bool {
-        let script = """
-        do shell script "pmset -a disablesleep 1" with administrator privileges
-        """
-
-        var error: NSDictionary?
-        if let scriptObject = NSAppleScript(source: script) {
-            scriptObject.executeAndReturnError(&error)
-            if error == nil {
-                print("[Settings] disablesleep enabled")
-                return true
-            } else {
-                print("[Settings] Failed to enable disablesleep: \(error ?? [:])")
-            }
-        }
-        return false
-    }
-
-    /// Disable pmset disablesleep (with admin prompt)
-    private func disableDisableSleep() {
-        let script = """
-        do shell script "pmset -a disablesleep 0" with administrator privileges
-        """
-
-        var error: NSDictionary?
-        if let scriptObject = NSAppleScript(source: script) {
-            scriptObject.executeAndReturnError(&error)
-            if error == nil {
-                print("[Settings] disablesleep disabled")
-            } else {
-                print("[Settings] Failed to disable disablesleep: \(error ?? [:])")
-            }
-        }
-    }
 
     /// Selected alarm sound
     var alarmSound: AlarmSound {
