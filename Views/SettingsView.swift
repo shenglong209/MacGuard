@@ -245,7 +245,7 @@ struct SettingsView: View {
 
                 // About Section
                 Section {
-                    LabeledContent("Version", value: "1.1.0")
+                    LabeledContent("Version", value: "1.2.0")
                     LabeledContent("macOS", value: "13.0+ (Ventura)")
                     Link(destination: URL(string: "https://github.com/shenglong209/MacGuard")!) {
                         HStack {
