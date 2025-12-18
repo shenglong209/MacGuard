@@ -24,21 +24,28 @@ Anti-theft alarm app for macOS. Protects your laptop in public places by trigger
 
 ## Installation
 
+### Download (Recommended)
+
+1. Download the latest DMG from [GitHub Releases](https://github.com/shenglong209/MacGuard/releases)
+2. Open the DMG and drag MacGuard to Applications
+3. **First launch** - Right-click the app → "Open" → Click "Open" in the dialog
+   - This is required because the app is not code-signed with Apple Developer ID
+   - Alternative: Run `xattr -cr /Applications/MacGuard.app` in Terminal
+
+### Auto-Update
+
+MacGuard includes automatic update checking via Sparkle. Check for updates in Settings → About → "Check for Updates".
+
 ### Build from Source
 
 ```bash
 git clone https://github.com/shenglong209/MacGuard.git
 cd MacGuard
 swift build -c release
+./scripts/create-dmg.sh 1.2.3
 ```
 
-The binary will be at `.build/release/MacGuard`
-
-### Run
-
-```bash
-.build/debug/MacGuard
-```
+The DMG will be at `dist/MacGuard-1.2.3.dmg`
 
 ## Usage
 
@@ -108,7 +115,8 @@ MacGuard/
 │   ├── PowerMonitor.swift           # Power disconnect
 │   ├── BluetoothProximityManager.swift  # RSSI scanning
 │   ├── AuthManager.swift            # Touch ID + Keychain
-│   └── AlarmAudioManager.swift      # Audio playback
+│   ├── AlarmAudioManager.swift      # Audio playback
+│   └── UpdateManager.swift          # Sparkle auto-update
 ├── Views/
 │   ├── MenuBarView.swift            # Menu bar dropdown
 │   ├── SettingsView.swift           # Settings window
