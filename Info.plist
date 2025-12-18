@@ -18,28 +18,12 @@
     <key>NSSupportsAutomaticTermination</key>
     <false/>
 
-    <!-- Sparkle Update Configuration -->
-    <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/shenglong209/MacGuard/main/appcast.xml</string>
-
-    <key>SUPublicEDKey</key>
-    <string>I7s26R56gqkm2GqhPOLdjcyK4YGcuEbSWsRBTEumlb8=</string>
-
-    <key>SUEnableAutomaticChecks</key>
-    <true/>
-
-    <key>SUScheduledCheckInterval</key>
-    <integer>86400</integer>
-
-    <key>SUShowReleaseNotes</key>
-    <true/>
-
     <!-- Version info -->
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>1</string>
 
     <key>CFBundleShortVersionString</key>
-    <string>1.2.0</string>
+    <string>1.0.0</string>
 
     <key>CFBundleIdentifier</key>
     <string>com.shenglong.macguard</string>

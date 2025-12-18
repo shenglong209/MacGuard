@@ -14,26 +14,15 @@ let package = Package(
             targets: ["MacGuard"]
         )
     ],
-    dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0")
-    ],
     targets: [
         .executableTarget(
             name: "MacGuard",
-            dependencies: [
-                .product(name: "Sparkle", package: "Sparkle")
-            ],
             path: ".",
             exclude: [
                 "Info.plist",
                 "MacGuard.entitlements",
                 "Package.swift",
-                "README.md",
-                "plans",
-                "scripts",
-                "appcast.xml",
-                "dist",
-                "featured-image.png"
+                "README.md"
             ],
             sources: [
                 "MacGuardApp.swift",
