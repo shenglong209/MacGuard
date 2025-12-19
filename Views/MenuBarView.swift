@@ -38,7 +38,7 @@ struct MenuBarView: View {
 
     @ViewBuilder
     private var accessibilityWarning: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
             Text("Accessibility Required")
@@ -101,13 +101,13 @@ struct MenuBarView: View {
     }
 
     private var actionsSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Button {
                 SettingsWindowController.shared.show(alarmManager: alarmManager)
             } label: {
                 HStack {
                     Image(systemName: "gearshape")
-                    Text("Settings...")
+                    Text("Settings")
                     Spacer()
                     Text("⌘,")
                         .font(.caption)
@@ -117,11 +117,23 @@ struct MenuBarView: View {
             .buttonStyle(.plain)
 
             Button {
+                UpdateManager.shared.checkForUpdates()
+            } label: {
+                HStack {
+                    Image(systemName: "square.and.arrow.down")
+                    Text("Check for Updates")
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!UpdateManager.shared.canCheckForUpdates)
+
+            Button {
                 NSApplication.shared.terminate(nil)
             } label: {
                 HStack {
                     Image(systemName: "power")
-                    Text("Quit MacGuard")
+                    Text("Quit")
                     Spacer()
                     Text("⌘Q")
                         .font(.caption)

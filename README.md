@@ -1,5 +1,10 @@
 # MacGuard
 
+![Version](https://img.shields.io/badge/version-1.3.4-blue)
+![macOS](https://img.shields.io/badge/macOS-13.0+-brightgreen)
+![Swift](https://img.shields.io/badge/Swift-5.9+-orange)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 ![MacGuard Featured Image](featured-image.png)
 
 Anti-theft alarm app for macOS. Protects your laptop in public places by triggering a loud alarm when unauthorized access is detected.
@@ -42,10 +47,10 @@ MacGuard includes automatic update checking via Sparkle. Check for updates in Se
 git clone https://github.com/shenglong209/MacGuard.git
 cd MacGuard
 swift build -c release
-./scripts/create-dmg.sh 1.2.3
+./scripts/create-dmg.sh 1.3.4
 ```
 
-The DMG will be at `dist/MacGuard-1.2.3.dmg`
+The DMG will be at `dist/MacGuard-1.3.4.dmg`
 
 ### Release Automation
 
@@ -158,6 +163,17 @@ MacGuard/
 | Accessibility | Global input monitoring via CGEventTap |
 | Bluetooth | Trusted device proximity detection |
 | Administrator | Lid close alarm (pmset disablesleep) |
+
+## Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+- **[Project Overview & PDR](docs/project-overview-pdr.md)** - Product vision, features, requirements
+- **[Codebase Summary](docs/codebase-summary.md)** - Technical overview, file structure, dependencies
+- **[Code Standards](docs/code-standards.md)** - Swift patterns, naming conventions, best practices
+- **[System Architecture](docs/system-architecture.md)** - State machine, data flow, component design
+- **[Project Roadmap](docs/project-roadmap.md)** - Completed milestones, known issues, future plans
+- **[Deployment Guide](docs/deployment-guide.md)** - Build instructions, release process, CI/CD
 
 ## License
 
