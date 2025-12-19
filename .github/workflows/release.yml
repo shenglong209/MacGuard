@@ -1,64 +1,82 @@
 name: Release DMG
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
-    paths-ignore:
-      - 'appcast.xml'
-      - '*.md'
-      - 'docs/**'
-      - 'plans/**'
 
 permissions:
   contents: write
 
 jobs:
-  check-version:
-    runs-on: ubuntu-latest
-    outputs:
-      should_release: ${{ steps.check.outputs.should_release }}
-      version: ${{ steps.check.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Check if version changed
-        id: check
-        run: |
-          # Extract version from Package.swift or Info.plist
-          CURRENT_VERSION=$(grep 'CFBundleShortVersionString' Info.plist -A1 | grep string | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-
-          # Check if this version tag already exists
-          if git ls-remote --tags origin | grep -q "refs/tags/v$CURRENT_VERSION"; then
-            echo "Version $CURRENT_VERSION already released"
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          else
-            echo "New version $CURRENT_VERSION detected"
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          fi
-
-  build-and-release:
-    needs: check-version
-    if: needs.check-version.outputs.should_release == 'true'
+  auto-release:
+    # Only run if PR was merged (not just closed)
+    if: github.event.pull_request.merged == true
     runs-on: macos-14
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set version
+      - name: Determine bump type from PR labels
+        id: bump
+        run: |
+          # Check PR labels for release type
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+
+          if echo "$LABELS" | grep -q "release:major"; then
+            echo "type=major" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "release:minor"; then
+            echo "type=minor" >> $GITHUB_OUTPUT
+          else
+            # Default to patch for any merged PR
+            echo "type=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump version
         id: version
-        run: echo "VERSION=${{ needs.check-version.outputs.version }}" >> $GITHUB_OUTPUT
+        run: |
+          # Extract current version
+          CURRENT_VERSION=$(grep -A1 'CFBundleShortVersionString' Info.plist | grep string | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+
+          # Parse version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          # Bump based on type
+          BUMP_TYPE="${{ steps.bump.outputs.type }}"
+          case "$BUMP_TYPE" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          BUILD_NUM="${NEW_VERSION//./}"
+
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "build_num=$BUILD_NUM" >> $GITHUB_OUTPUT
+
+          echo "Version bump: $CURRENT_VERSION -> $NEW_VERSION ($BUMP_TYPE)"
+
+      - name: Update Info.plist
+        run: |
+          sed -i '' "s/<string>${{ steps.version.outputs.current }}<\/string>/<string>${{ steps.version.outputs.new }}<\/string>/" Info.plist
+
+          # Verify the change
+          grep -A1 'CFBundleShortVersionString' Info.plist
 
       - name: Build release binary
         run: swift build -c release
 
       - name: Create app bundle and DMG
         env:
-          VERSION: ${{ steps.version.outputs.VERSION }}
+          VERSION: ${{ steps.version.outputs.new }}
+          BUILD_NUM: ${{ steps.version.outputs.build_num }}
         run: |
           APP_NAME="MacGuard"
           BUNDLE_ID="com.shenglong.macguard"
@@ -66,7 +84,6 @@ jobs:
           DIST_DIR="dist"
           APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
           DMG_NAME="$APP_NAME-$VERSION.dmg"
-          BUILD_NUM="${VERSION//./}"
 
           # Create app bundle structure
           mkdir -p "$APP_BUNDLE/Contents/MacOS"
@@ -175,7 +192,7 @@ jobs:
       - name: Sign DMG with EdDSA
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-          VERSION: ${{ steps.version.outputs.VERSION }}
+          VERSION: ${{ steps.version.outputs.new }}
         run: |
           # Write private key to temp file
           echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_private_key
@@ -199,7 +216,7 @@ jobs:
 
       - name: Update appcast.xml
         env:
-          VERSION: ${{ steps.version.outputs.VERSION }}
+          VERSION: ${{ steps.version.outputs.new }}
         run: |
           BUILD_NUM="${VERSION//./}"
           PUB_DATE=$(LC_TIME=C date "+%a, %d %b %Y %H:%M:%S %z")
@@ -233,17 +250,31 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          name: MacGuard v${{ steps.version.outputs.VERSION }}
+          tag_name: v${{ steps.version.outputs.new }}
+          name: MacGuard v${{ steps.version.outputs.new }}
           files: ${{ env.DMG_PATH }}
-          generate_release_notes: true
+          body: |
+            ## MacGuard v${{ steps.version.outputs.new }}
+
+            **Merged PR:** #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}
+
+            ### Changes
+            ${{ github.event.pull_request.body }}
+
+            ### Installation
+            1. Download MacGuard-${{ steps.version.outputs.new }}.dmg
+            2. Open DMG and drag MacGuard to Applications
+            3. Launch from Applications folder
+
+            ### Auto-Update
+            If you have a previous version installed, use Check for Updates in Settings.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit appcast.xml
+      - name: Commit version bump and appcast
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add appcast.xml
-          git commit -m "chore: update appcast for v${{ steps.version.outputs.VERSION }}"
+          git add Info.plist appcast.xml
+          git commit -m "chore: release v${{ steps.version.outputs.new }}"
           git push
