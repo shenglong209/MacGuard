@@ -47,6 +47,25 @@ swift build -c release
 
 The DMG will be at `dist/MacGuard-1.2.3.dmg`
 
+### Release Automation
+
+Releases are automated via GitHub Actions:
+- **Merge PR to main** → Automatically bumps patch version and releases
+- Add `release:minor` or `release:major` label to PR for respective bumps
+
+#### Code Signing for CI (Preserves Accessibility Permission)
+
+To prevent users from needing to re-grant Accessibility permission after each update:
+
+1. Export your Apple Development certificate:
+   ```bash
+   ./scripts/export-certificate.sh
+   ```
+
+2. Add GitHub secrets:
+   - `SIGNING_CERTIFICATE_P12_BASE64`: The base64-encoded .p12 file
+   - `SIGNING_CERTIFICATE_PASSWORD`: The password for the .p12 file
+
 ## Usage
 
 1. **Grant Accessibility Permission**

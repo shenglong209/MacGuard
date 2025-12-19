@@ -73,6 +73,49 @@ jobs:
       - name: Build release binary
         run: swift build -c release
 
+      - name: Setup signing certificate
+        env:
+          SIGNING_CERTIFICATE_P12: ${{ secrets.SIGNING_CERTIFICATE_P12_BASE64 }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          # Skip if no certificate is configured
+          if [ -z "$SIGNING_CERTIFICATE_P12" ]; then
+            echo "No signing certificate configured. Using ad-hoc signing."
+            echo "Note: Accessibility permission will need to be re-granted after each update."
+            echo "SIGNING_IDENTITY=-" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          # Create temp keychain
+          KEYCHAIN="build.keychain"
+          KEYCHAIN_PASSWORD="build"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          # Import certificate
+          echo "$SIGNING_CERTIFICATE_P12" | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm /tmp/cert.p12
+
+          # Allow codesign to access keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          # Add to keychain search list
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+
+          # Find the imported identity
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | grep -o '"[^"]*"' | head -1 | tr -d '"')
+          echo "Found signing identity: $IDENTITY"
+
+          if [ -n "$IDENTITY" ]; then
+            echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
+          else
+            echo "Warning: No valid signing identity found, using ad-hoc"
+            echo "SIGNING_IDENTITY=-" >> $GITHUB_ENV
+          fi
+
       - name: Create app bundle and DMG
         env:
           VERSION: ${{ steps.version.outputs.new }}
@@ -172,11 +215,12 @@ jobs:
               rm -rf "$ICONSET"
           fi
 
-          # Code sign the app bundle (ad-hoc signing for Sparkle compatibility)
+          # Code sign the app bundle (consistent identity for TCC permission persistence)
+          echo "Code signing with identity: $SIGNING_IDENTITY"
           if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
-              codesign --force --deep --sign - "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+              codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
           fi
-          codesign --force --sign - "$APP_BUNDLE"
+          codesign --force --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
 
           # Create DMG
           DMG_TEMP="$DIST_DIR/dmg-temp"

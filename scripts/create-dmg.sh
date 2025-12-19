@@ -2,16 +2,34 @@
 # create-dmg.sh - Create MacGuard DMG for distribution
 # Usage: ./scripts/create-dmg.sh VERSION
 # Example: ./scripts/create-dmg.sh 1.2.0
+#
+# This script uses a consistent signing identity to preserve TCC permissions
+# (accessibility) across app updates. Run scripts/setup-certificate.sh first.
 set -e
 
 APP_NAME="MacGuard"
 VERSION="${1:-1.2.0}"
 BUNDLE_ID="com.shenglong.macguard"
+# Use Apple Developer cert if available, otherwise self-signed, otherwise ad-hoc
+SIGNING_IDENTITY=""
 
 if [ -z "$1" ]; then
     echo "Usage: ./scripts/create-dmg.sh VERSION"
     echo "Example: ./scripts/create-dmg.sh 1.2.0"
     exit 1
+fi
+
+# Find best available signing identity
+if security find-identity -v -p codesigning | grep -q "Apple Development"; then
+    SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | sed 's/.*"\(.*\)"/\1/')
+    echo "Using Apple Development certificate: $SIGNING_IDENTITY"
+elif security find-identity -v -p codesigning | grep -q "MacGuard Developer"; then
+    SIGNING_IDENTITY="MacGuard Developer"
+    echo "Using self-signed certificate: $SIGNING_IDENTITY"
+else
+    echo "⚠️  No trusted certificate found."
+    echo "   Falling back to ad-hoc signing (accessibility permission will reset on updates)"
+    SIGNING_IDENTITY="-"
 fi
 
 # Paths
@@ -113,14 +131,14 @@ if [ -f "Resources/AppIcon.png" ]; then
     rm -rf "$ICONSET"
 fi
 
-# Code sign the app bundle (ad-hoc signing for Sparkle compatibility)
-echo "Code signing app bundle..."
+# Code sign the app bundle (consistent identity for TCC permission persistence)
+echo "Code signing app bundle with '$SIGNING_IDENTITY'..."
 # Sign frameworks first (Sparkle contains nested frameworks/helpers)
 if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
-    codesign --force --deep --sign - "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+    codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 fi
 # Sign the main app bundle
-codesign --force --sign - "$APP_BUNDLE"
+codesign --force --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
 echo "✓ App bundle code signed"
 
 echo "App bundle created: $APP_BUNDLE"
