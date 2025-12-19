@@ -13,27 +13,29 @@ struct CountdownOverlayView: View {
     @State private var pulseOpacity: Double = 0.3
 
     var body: some View {
-        ZStack {
-            // Dark overlay background with gradient
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.95),
-                    alarmManager.state == .alarming ? Color.red.opacity(0.3) : Color.black.opacity(0.85)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .edgesIgnoringSafeArea(.all)
+        GeometryReader { geometry in
+            ZStack {
+                // Dark overlay background with gradient - fixed position
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.95),
+                        alarmManager.state == .alarming ? Color.red.opacity(0.3) : Color.black.opacity(0.85)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
-            // Pulsing background circle for alarm state
-            if alarmManager.state == .alarming {
-                Circle()
-                    .fill(Color.red.opacity(pulseOpacity))
-                    .frame(width: 300, height: 300)
-                    .blur(radius: 60)
-            }
+                // Pulsing background circle for alarm state - centered and fixed
+                if alarmManager.state == .alarming {
+                    Circle()
+                        .fill(Color.red.opacity(pulseOpacity))
+                        .frame(width: 300, height: 300)
+                        .blur(radius: 60)
+                        .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                }
 
-            VStack(spacing: 30) {
+                VStack(spacing: 30) {
                 // Warning icon with animation
                 ZStack {
                     // Glow effect
@@ -120,6 +122,7 @@ struct CountdownOverlayView: View {
                         }
                     }
                 }
+            }
             }
         }
         .onAppear {
