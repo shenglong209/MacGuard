@@ -5,14 +5,25 @@ on:
     types: [closed]
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
 
 jobs:
   auto-release:
-    # Only run if PR was merged (not just closed)
-    if: github.event.pull_request.merged == true
+    # Run if PR was merged OR manually triggered
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: macos-14
 
     steps:
@@ -25,6 +36,12 @@ jobs:
       - name: Determine bump type from PR labels
         id: bump
         run: |
+          # Check if manually triggered
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ github.event.inputs.bump_type }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # Check PR labels for release type
           LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
 
@@ -300,10 +317,7 @@ jobs:
           body: |
             ## MacGuard v${{ steps.version.outputs.new }}
 
-            **Merged PR:** #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}
-
-            ### Changes
-            ${{ github.event.pull_request.body }}
+            ${{ github.event_name == 'workflow_dispatch' && 'Manual release' || format('**Merged PR:** #{0} - {1}', github.event.pull_request.number, github.event.pull_request.title) }}
 
             ### Installation
             1. Download MacGuard-${{ steps.version.outputs.new }}.dmg
