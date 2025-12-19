@@ -63,6 +63,7 @@ class AppSettings: ObservableObject {
     @AppStorage("alarmSound") private var alarmSoundRaw: String = AlarmSound.dontTouchMyMac.rawValue
     @AppStorage("alarmVolume") var alarmVolume: Double = 1.0
     @AppStorage("customSoundPath") var customSoundPath: String = ""
+    @AppStorage("countdownDuration") var countdownDuration: Int = 3
     @AppStorage("lidCloseProtection") private var _lidCloseProtection: Bool = false
 
     /// Lid close protection with pmset control

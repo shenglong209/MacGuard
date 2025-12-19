@@ -218,6 +218,15 @@ struct SettingsView: View {
                 Section {
                     Toggle("Lock screen when armed", isOn: $settings.autoLockOnArm)
 
+                    Picker("Countdown duration", selection: $settings.countdownDuration) {
+                        Text("Immediately").tag(0)
+                        Text("3 seconds").tag(3)
+                        Text("5 seconds").tag(5)
+                        Text("10 seconds").tag(10)
+                        Text("15 seconds").tag(15)
+                        Text("30 seconds").tag(30)
+                    }
+
                     // Lid Close Protection with warning
                     VStack(alignment: .leading, spacing: 6) {
                         Toggle("Lid close alarm (requires admin)", isOn: $settings.lidCloseProtection)
@@ -298,7 +307,7 @@ struct SettingsView: View {
                 // About Section
                 Section {
                     LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown")
-                    LabeledContent("macOS", value: "13.0+ (Ventura)")
+                    LabeledContent("macOS", value: macOSVersion)
 
                     // Check for Updates button
                     HStack {
@@ -328,6 +337,11 @@ struct SettingsView: View {
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+    }
+
+    private var macOSVersion: String {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
     }
 
     private var headerBarGradient: LinearGradient {

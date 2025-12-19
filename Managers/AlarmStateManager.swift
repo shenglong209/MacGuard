@@ -15,10 +15,6 @@ class AlarmStateManager: ObservableObject {
     @Published var countdownSeconds: Int = 3
     @Published var hasAccessibilityPermission = false
 
-    // MARK: - Configuration
-
-    private let countdownDuration = 3
-
     // MARK: - Public Managers (for UI access)
 
     let bluetoothManager = BluetoothProximityManager()
@@ -213,14 +209,22 @@ class AlarmStateManager: ObservableObject {
             return
         }
 
-        state = .triggered
-        countdownSeconds = countdownDuration
+        let duration = AppSettings.shared.countdownDuration
+        countdownSeconds = duration
 
         // Show fullscreen overlay
         overlayController.show(alarmManager: self)
 
-        startCountdown()
-        print("[MacGuard] Triggered - countdown started")
+        // If countdown is 0, skip directly to alarm
+        if duration == 0 {
+            audioManager.playAlarm()
+            state = .alarming
+            print("[MacGuard] Triggered - immediate alarm (no countdown)")
+        } else {
+            state = .triggered
+            startCountdown()
+            print("[MacGuard] Triggered - countdown started (\(duration)s)")
+        }
     }
 
     /// Immediately trigger alarm (e.g., for lid close)

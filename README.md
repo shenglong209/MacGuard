@@ -175,6 +175,13 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[Project Roadmap](docs/project-roadmap.md)** - Completed milestones, known issues, future plans
 - **[Deployment Guide](docs/deployment-guide.md)** - Build instructions, release process, CI/CD
 
+## Built With
+
+This project was developed with the assistance of:
+
+- **[Claude Code](https://claude.ai/code)** - Anthropic's AI-powered coding assistant
+- **[ClaudeKit](https://claudekit.cc/?ref=BPLLTRW2)** - Skills and workflows for Claude Code
+
 ## License
 
 MIT License
