@@ -12,7 +12,9 @@ class AlarmAudioManager: ObservableObject {
     private var audioPlayer: AVAudioPlayer?
     private var originalVolume: Float = 0.5
     private var beepTimer: Timer?
+    private var volumeEnforcementTimer: Timer?
     private var isPrepared = false
+    private var targetVolume: Float = 1.0
 
     // MARK: - Preparation
 
@@ -57,11 +59,17 @@ class AlarmAudioManager: ObservableObject {
         // Save original volume
         saveOriginalVolume()
 
+        // Store target volume for enforcement
+        targetVolume = Float(settings.alarmVolume)
+
         // Set system volume based on settings
-        setSystemVolume(Float(settings.alarmVolume))
+        setSystemVolume(targetVolume)
 
         // Unmute if muted
         unmuteSpeaker()
+
+        // Start volume enforcement timer to prevent muting
+        startVolumeEnforcement()
 
         // Use pre-loaded player if available, otherwise load now
         if isPrepared, let player = audioPlayer {
@@ -80,6 +88,9 @@ class AlarmAudioManager: ObservableObject {
 
     /// Stop the alarm and restore volume
     func stopAlarm() {
+        // Stop volume enforcement first
+        stopVolumeEnforcement()
+
         audioPlayer?.stop()
         audioPlayer = nil
         beepTimer?.invalidate()
@@ -91,6 +102,47 @@ class AlarmAudioManager: ObservableObject {
         setSystemVolume(originalVolume)
 
         print("[Alarm] Alarm stopped")
+    }
+
+    // MARK: - Volume Enforcement
+
+    /// Start timer to continuously enforce volume (prevents muting via keyboard)
+    private func startVolumeEnforcement() {
+        stopVolumeEnforcement()
+        volumeEnforcementTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
+            self?.enforceVolume()
+        }
+        print("[Alarm] Volume enforcement started")
+    }
+
+    private func stopVolumeEnforcement() {
+        volumeEnforcementTimer?.invalidate()
+        volumeEnforcementTimer = nil
+    }
+
+    /// Check and restore volume if user tries to mute
+    private func enforceVolume() {
+        guard isPlaying else { return }
+
+        // Check if muted
+        let muteScript = "output muted of (get volume settings)"
+        if let result = runAppleScript(muteScript),
+           result.trimmingCharacters(in: .whitespacesAndNewlines) == "true" {
+            unmuteSpeaker()
+            setSystemVolume(targetVolume)
+            print("[Alarm] Mute blocked - volume restored")
+        }
+
+        // Check if volume lowered
+        let volumeScript = "output volume of (get volume settings)"
+        if let result = runAppleScript(volumeScript),
+           let currentVolume = Int(result.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            let targetPercentage = Int(targetVolume * 100)
+            if currentVolume < targetPercentage - 5 {
+                setSystemVolume(targetVolume)
+                print("[Alarm] Volume restored from \(currentVolume)% to \(targetPercentage)%")
+            }
+        }
     }
 
     // MARK: - Audio File Playback

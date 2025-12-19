@@ -12,38 +12,90 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with app icon and status
-            HStack(spacing: 16) {
-                // App icon
-                if let iconImage = loadAppIcon() {
-                    Image(nsImage: iconImage)
-                        .resizable()
-                        .frame(width: 64, height: 64)
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-                } else {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.blue)
-                }
+            // Modern header with animated top bar
+            VStack(spacing: 0) {
+                // Animated status bar at top
+                Rectangle()
+                    .fill(headerBarGradient)
+                    .frame(height: 3)
+                    .animation(.easeInOut(duration: 0.5), value: alarmManager.state)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("MacGuard")
-                        .font(.title.bold())
+                // Header content
+                HStack(spacing: 14) {
+                    // App icon with glow when armed
+                    if let iconImage = loadAppIcon() {
+                        Image(nsImage: iconImage)
+                            .resizable()
+                            .frame(width: 56, height: 56)
+                            .cornerRadius(12)
+                            .shadow(
+                                color: alarmManager.state != .idle ? .green.opacity(0.4) : .black.opacity(0.2),
+                                radius: alarmManager.state != .idle ? 12 : 4,
+                                x: 0, y: 2
+                            )
+                            .animation(.easeInOut(duration: 0.5), value: alarmManager.state)
+                    } else {
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.blue)
+                    }
+
+                    // Title and subtitle
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) {
+                            Text("MacGuard")
+                                .font(.title2.bold())
+                            Text("v\(appVersion)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.primary.opacity(0.06))
+                                .cornerRadius(4)
+                        }
+                        Text("Anti-Theft Protection")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    // Status indicator
                     HStack(spacing: 6) {
                         Circle()
                             .fill(alarmManager.state == .idle ? Color.gray : Color.green)
                             .frame(width: 8, height: 8)
+                            .shadow(
+                                color: alarmManager.state != .idle ? .green.opacity(0.6) : .clear,
+                                radius: 4
+                            )
                         Text(alarmManager.state == .idle ? "Disarmed" : "Protected")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(alarmManager.state == .idle ? .secondary : .green)
                     }
-                }
+                    .animation(.easeInOut(duration: 0.3), value: alarmManager.state)
 
-                Spacer()
+                    // Quick action button
+                    Button {
+                        if alarmManager.state == .idle {
+                            alarmManager.arm()
+                        } else {
+                            alarmManager.disarm()
+                        }
+                    } label: {
+                        Image(systemName: alarmManager.state == .idle ? "shield" : "shield.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(alarmManager.state == .idle ? .secondary : .green)
+                            .frame(width: 36, height: 36)
+                            .background(Color.primary.opacity(0.06))
+                            .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .help(alarmManager.state == .idle ? "Arm MacGuard" : "Disarm MacGuard")
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
             .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
@@ -270,6 +322,32 @@ struct SettingsView: View {
             .formStyle(.grouped)
         }
         .frame(width: 420, height: 680)
+    }
+
+    // MARK: - Computed Properties
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+    }
+
+    private var headerBarGradient: LinearGradient {
+        if alarmManager.state != .idle {
+            return LinearGradient(
+                colors: [.green],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else {
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.4, green: 0.49, blue: 0.92),
+                    Color(red: 0.61, green: 0.3, blue: 0.79),
+                    Color(red: 0.91, green: 0.3, blue: 0.55)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
     }
 
     // MARK: - Helper Functions

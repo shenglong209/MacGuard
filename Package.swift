@@ -33,7 +33,9 @@ let package = Package(
                 "scripts",
                 "appcast.xml",
                 "dist",
-                "featured-image.png"
+                "docs",
+                "featured-image.png",
+                "repomix-output.xml"
             ],
             sources: [
                 "MacGuardApp.swift",
