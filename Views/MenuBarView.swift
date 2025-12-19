@@ -4,6 +4,36 @@
 
 import SwiftUI
 
+/// Custom button style with hover effect for menu items
+struct MenuItemButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(backgroundColor(isPressed: configuration.isPressed))
+            )
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                isHovered = hovering
+            }
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        if isPressed {
+            return Color.accentColor.opacity(0.2)
+        } else if isHovered {
+            return Color.primary.opacity(0.08)
+        } else {
+            return Color.clear
+        }
+    }
+}
+
 /// Menu bar dropdown content view (window style)
 struct MenuBarView: View {
     @EnvironmentObject var alarmManager: AlarmStateManager
@@ -101,7 +131,7 @@ struct MenuBarView: View {
     }
 
     private var actionsSection: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 4) {
             Button {
                 SettingsWindowController.shared.show(alarmManager: alarmManager)
             } label: {
@@ -114,7 +144,7 @@ struct MenuBarView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MenuItemButtonStyle())
 
             Button {
                 UpdateManager.shared.checkForUpdates()
@@ -125,7 +155,7 @@ struct MenuBarView: View {
                     Spacer()
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MenuItemButtonStyle())
             .disabled(!UpdateManager.shared.canCheckForUpdates)
 
             Button {
@@ -140,7 +170,7 @@ struct MenuBarView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MenuItemButtonStyle())
         }
     }
 
