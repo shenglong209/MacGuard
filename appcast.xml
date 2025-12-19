@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 1.3.5</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.3.5</link>
+      <sparkle:version>135</sparkle:version>
+      <sparkle:shortVersionString>1.3.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 1.3.5</h3>
+        <p>See release notes on GitHub.</p>
+      ]]></description>
+      <pubDate>Fri, 19 Dec 2025 09:43:38 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v1.3.5/MacGuard-1.3.5.dmg"
+        sparkle:edSignature="3C5epyMUk4kibfZXLHTmvsWmu1KpaHXJh8eUv8DAM+tY1hEKIZhTwkDodp9JHp298wqDuL9yGW9K+/ykVWTbCw=="
+        length="4092103"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 1.3.4</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.3.4</link>
       <sparkle:version>134</sparkle:version>
