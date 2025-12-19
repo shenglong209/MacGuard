@@ -10,6 +10,9 @@ on:
       - 'docs/**'
       - 'plans/**'
 
+permissions:
+  contents: write
+
 jobs:
   check-version:
     runs-on: ubuntu-latest
