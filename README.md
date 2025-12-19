@@ -1,9 +1,9 @@
 # MacGuard
 
-![Version](https://img.shields.io/badge/version-1.3.4-blue)
+![Version](https://img.shields.io/github/v/release/shenglong209/MacGuard?label=version&color=blue)
 ![macOS](https://img.shields.io/badge/macOS-13.0+-brightgreen)
 ![Swift](https://img.shields.io/badge/Swift-5.9+-orange)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/github/license/shenglong209/MacGuard?color=green)
 
 ![MacGuard Featured Image](featured-image.png)
 
