@@ -112,6 +112,16 @@ if [ -f "Resources/AppIcon.png" ]; then
     rm -rf "$ICONSET"
 fi
 
+# Code sign the app bundle (ad-hoc signing for Sparkle compatibility)
+echo "Code signing app bundle..."
+# Sign frameworks first (Sparkle contains nested frameworks/helpers)
+if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
+    codesign --force --deep --sign - "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+fi
+# Sign the main app bundle
+codesign --force --sign - "$APP_BUNDLE"
+echo "✓ App bundle code signed"
+
 echo "App bundle created: $APP_BUNDLE"
 
 # Create DMG
