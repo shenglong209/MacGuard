@@ -74,8 +74,9 @@ class AlarmStateManager: ObservableObject {
         guard !hasAccessibilityPermission else { return }
         permissionCheckTimer?.invalidate()
         permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let strongSelf = self else { return }
             Task { @MainActor in
-                self?.checkPermissions()
+                strongSelf.checkPermissions()
             }
         }
     }
@@ -248,16 +249,16 @@ class AlarmStateManager: ObservableObject {
     private func startCountdown() {
         countdownTimer?.invalidate()
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let strongSelf = self else { return }
             Task { @MainActor in
-                guard let self else { return }
-                self.countdownSeconds -= 1
-                if self.countdownSeconds <= 0 {
-                    self.countdownTimer?.invalidate()
-                    self.countdownTimer = nil
+                strongSelf.countdownSeconds -= 1
+                if strongSelf.countdownSeconds <= 0 {
+                    strongSelf.countdownTimer?.invalidate()
+                    strongSelf.countdownTimer = nil
 
                     // Start alarm
-                    self.audioManager.playAlarm()
-                    self.state = .alarming
+                    strongSelf.audioManager.playAlarm()
+                    strongSelf.state = .alarming
                     print("[MacGuard] Countdown expired - ALARM ACTIVE")
                 }
             }
