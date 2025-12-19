@@ -2,20 +2,53 @@ name: Release DMG
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths-ignore:
+      - 'appcast.xml'
+      - '*.md'
+      - 'docs/**'
+      - 'plans/**'
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version changed
+        id: check
+        run: |
+          # Extract version from Package.swift or Info.plist
+          CURRENT_VERSION=$(grep 'CFBundleShortVersionString' Info.plist -A1 | grep string | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+
+          # Check if this version tag already exists
+          if git ls-remote --tags origin | grep -q "refs/tags/v$CURRENT_VERSION"; then
+            echo "Version $CURRENT_VERSION already released"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version $CURRENT_VERSION detected"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          fi
+
   build-and-release:
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
     runs-on: macos-14
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Extract version from tag
+      - name: Set version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${{ needs.check-version.outputs.version }}" >> $GITHUB_OUTPUT
 
       - name: Build release binary
         run: swift build -c release
@@ -30,20 +63,29 @@ jobs:
           DIST_DIR="dist"
           APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
           DMG_NAME="$APP_NAME-$VERSION.dmg"
+          BUILD_NUM="${VERSION//./}"
 
           # Create app bundle structure
           mkdir -p "$APP_BUNDLE/Contents/MacOS"
           mkdir -p "$APP_BUNDLE/Contents/Resources"
+          mkdir -p "$APP_BUNDLE/Contents/Frameworks"
 
           # Copy binary
           cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
+
+          # Copy Sparkle.framework
+          SPARKLE_FRAMEWORK=".build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+          if [ -d "$SPARKLE_FRAMEWORK" ]; then
+              cp -R "$SPARKLE_FRAMEWORK" "$APP_BUNDLE/Contents/Frameworks/"
+              install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+          fi
 
           # Copy resources
           if [ -d "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle/Contents/Resources" ]; then
               cp -R "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle/Contents/Resources/"* "$APP_BUNDLE/Contents/Resources/"
           fi
 
-          # Create Info.plist
+          # Create Info.plist with Sparkle config
           cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -66,7 +108,17 @@ jobs:
               <key>CFBundleShortVersionString</key>
               <string>$VERSION</string>
               <key>CFBundleVersion</key>
-              <string>1</string>
+              <string>$BUILD_NUM</string>
+              <key>SUFeedURL</key>
+              <string>https://raw.githubusercontent.com/shenglong209/MacGuard/main/appcast.xml</string>
+              <key>SUPublicEDKey</key>
+              <string>${{ secrets.SPARKLE_PUBLIC_KEY }}</string>
+              <key>SUEnableAutomaticChecks</key>
+              <true/>
+              <key>SUScheduledCheckInterval</key>
+              <integer>86400</integer>
+              <key>SUShowReleaseNotes</key>
+              <true/>
               <key>LSMinimumSystemVersion</key>
               <string>13.0</string>
               <key>LSUIElement</key>
@@ -99,6 +151,12 @@ jobs:
               rm -rf "$ICONSET"
           fi
 
+          # Code sign the app bundle (ad-hoc signing for Sparkle compatibility)
+          if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
+              codesign --force --deep --sign - "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+          fi
+          codesign --force --sign - "$APP_BUNDLE"
+
           # Create DMG
           DMG_TEMP="$DIST_DIR/dmg-temp"
           mkdir -p "$DMG_TEMP"
@@ -108,11 +166,80 @@ jobs:
           rm -rf "$DMG_TEMP"
 
           echo "DMG_PATH=$DIST_DIR/$DMG_NAME" >> $GITHUB_ENV
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+
+      - name: Sign DMG with EdDSA
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          # Write private key to temp file
+          echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_private_key
+
+          # Sign the DMG
+          SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
+          SIGNATURE=$("$SPARKLE_BIN/sign_update" --ed-key-file /tmp/sparkle_private_key "$DMG_PATH")
+
+          # Extract signature and length
+          ED_SIGNATURE=$(echo "$SIGNATURE" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
+          FILE_LENGTH=$(echo "$SIGNATURE" | sed -n 's/.*length="\([^"]*\)".*/\1/p')
+
+          # Clean up key file
+          rm -f /tmp/sparkle_private_key
+
+          echo "ED_SIGNATURE=$ED_SIGNATURE" >> $GITHUB_ENV
+          echo "FILE_LENGTH=$FILE_LENGTH" >> $GITHUB_ENV
+
+          echo "Signature: ${ED_SIGNATURE:0:20}..."
+          echo "Length: $FILE_LENGTH bytes"
+
+      - name: Update appcast.xml
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          BUILD_NUM="${VERSION//./}"
+          PUB_DATE=$(LC_TIME=C date "+%a, %d %b %Y %H:%M:%S %z")
+
+          # Create new item
+          ITEM="    <item>
+                <title>Version ${VERSION}</title>
+                <link>https://github.com/shenglong209/MacGuard/releases/tag/v${VERSION}</link>
+                <sparkle:version>${BUILD_NUM}</sparkle:version>
+                <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+                <description><![CDATA[
+                  <h3>What's New in ${VERSION}</h3>
+                  <p>See release notes on GitHub.</p>
+                ]]></description>
+                <pubDate>${PUB_DATE}</pubDate>
+                <enclosure
+                  url=\"https://github.com/shenglong209/MacGuard/releases/download/v${VERSION}/MacGuard-${VERSION}.dmg\"
+                  sparkle:edSignature=\"${ED_SIGNATURE}\"
+                  length=\"${FILE_LENGTH}\"
+                  type=\"application/octet-stream\"
+                />
+              </item>"
+
+          # Insert after </language> line
+          ITEM_FILE=$(mktemp)
+          echo "$ITEM" > "$ITEM_FILE"
+          sed -i '' "/<\/language>/r $ITEM_FILE" appcast.xml
+          rm -f "$ITEM_FILE"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: MacGuard v${{ steps.version.outputs.VERSION }}
           files: ${{ env.DMG_PATH }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit appcast.xml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: update appcast for v${{ steps.version.outputs.VERSION }}"
+          git push
