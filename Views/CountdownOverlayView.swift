@@ -67,7 +67,7 @@ struct CountdownOverlayView: View {
 
                         // Progress ring
                         Circle()
-                            .trim(from: 0, to: CGFloat(alarmManager.countdownSeconds) / 3.0)
+                            .trim(from: 0, to: CGFloat(alarmManager.countdownSeconds) / CGFloat(AppSettings.shared.countdownDuration))
                             .stroke(Color.red, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                             .frame(width: 160, height: 160)
                             .rotationEffect(.degrees(-90))
