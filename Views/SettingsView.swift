@@ -275,7 +275,7 @@ struct SettingsView: View {
     // MARK: - Helper Functions
 
     private func loadAppIcon() -> NSImage? {
-        guard let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png", subdirectory: "Resources"),
+        guard let url = ResourceBundle.url(forResource: "AppIcon", withExtension: "png", subdirectory: "Resources"),
               let image = NSImage(contentsOf: url) else {
             return nil
         }

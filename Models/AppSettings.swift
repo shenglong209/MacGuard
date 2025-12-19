@@ -32,7 +32,7 @@ enum AlarmSound: String, CaseIterable, Identifiable {
     var soundPath: String? {
         switch self {
         case .dontTouchMyMac:
-            return Bundle.module.url(forResource: "dont-touch-my-mac", withExtension: "mp3", subdirectory: "Resources")?.path
+            return ResourceBundle.url(forResource: "dont-touch-my-mac", withExtension: "mp3", subdirectory: "Resources")?.path
         case .custom:
             return nil
         default:
@@ -44,7 +44,7 @@ enum AlarmSound: String, CaseIterable, Identifiable {
     var isAvailable: Bool {
         switch self {
         case .dontTouchMyMac:
-            return Bundle.module.url(forResource: "dont-touch-my-mac", withExtension: "mp3", subdirectory: "Resources") != nil
+            return ResourceBundle.url(forResource: "dont-touch-my-mac", withExtension: "mp3", subdirectory: "Resources") != nil
         case .custom:
             return true
         default:

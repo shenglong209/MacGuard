@@ -39,7 +39,8 @@ let package = Package(
                 "MacGuardApp.swift",
                 "Managers",
                 "Views",
-                "Models"
+                "Models",
+                "Utilities"
             ],
             resources: [
                 .copy("Resources")

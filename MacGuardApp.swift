@@ -47,7 +47,7 @@ struct MenuBarIconView: View {
     }
 
     private func loadMenuBarIcon() -> NSImage? {
-        guard let url = Bundle.module.url(forResource: "MenuBarIcon", withExtension: "png", subdirectory: "Resources"),
+        guard let url = ResourceBundle.url(forResource: "MenuBarIcon", withExtension: "png", subdirectory: "Resources"),
               let image = NSImage(contentsOf: url) else {
             return nil
         }

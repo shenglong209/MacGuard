@@ -40,7 +40,7 @@ if [ -d "$SPARKLE_FRAMEWORK" ]; then
     install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
 fi
 
-# Copy resources - the entire bundle must be copied for SPM resource access
+# Copy resources - bundle goes in Contents/Resources for code signing
 RESOURCE_BUNDLE="$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle"
 if [ -d "$RESOURCE_BUNDLE" ]; then
     cp -R "$RESOURCE_BUNDLE" "$APP_BUNDLE/Contents/Resources/"
