@@ -40,7 +40,7 @@ class DeviceScannerWindowController: NSObject, NSWindowDelegate {
         let view = DeviceScannerContainerView(viewModel: viewModel, onDismiss: { [weak self] in
             self?.viewModel.stopScanning()
             self?.window?.orderOut(nil)
-            NSApp.setActivationPolicy(.accessory)
+            // Don't change activation policy - let Settings window handle it
         })
         hostingController = NSHostingController(rootView: view)
 
@@ -61,7 +61,7 @@ class DeviceScannerWindowController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         viewModel.stopScanning()
-        NSApp.setActivationPolicy(.accessory)
+        // Don't change activation policy - let Settings window handle it
     }
 }
 
@@ -241,7 +241,7 @@ struct DeviceScannerContainerView: View {
                                     .fill(.blue.opacity(0.1))
                                     .frame(width: 40, height: 40)
 
-                                Image(systemName: deviceIcon(for: device.name))
+                                Image(systemName: TrustedDevice.icon(for: device.name))
                                     .font(.system(size: 18))
                                     .foregroundStyle(.blue)
                             }
@@ -300,16 +300,6 @@ struct DeviceScannerContainerView: View {
             .padding()
         }
         .frame(width: 350, height: 400)
-    }
-
-    private func deviceIcon(for name: String) -> String {
-        let lowered = name.lowercased()
-        if lowered.contains("iphone") { return "iphone" }
-        if lowered.contains("watch") { return "applewatch" }
-        if lowered.contains("ipad") { return "ipad" }
-        if lowered.contains("mac") { return "laptopcomputer" }
-        if lowered.contains("airpods") { return "airpodspro" }
-        return "wave.3.right"
     }
 
     private func signalStrengthText(for rssi: Int) -> String {

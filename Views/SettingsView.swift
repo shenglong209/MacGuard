@@ -126,7 +126,7 @@ struct SettingsView: View {
                 Section {
                     if let device = alarmManager.bluetoothManager.trustedDevice {
                         HStack(spacing: 12) {
-                            Image(systemName: deviceIcon(for: device.name))
+                            Image(systemName: device.icon)
                                 .font(.title2)
                                 .foregroundColor(.blue)
                                 .frame(width: 32)
@@ -151,6 +151,13 @@ struct SettingsView: View {
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                         }
+
+                        Picker("Detection Distance", selection: $settings.proximityDistance) {
+                            ForEach(ProximityDistance.allCases) { distance in
+                                Text("\(distance.rawValue) (\(distance.description))").tag(distance)
+                            }
+                        }
+                        .pickerStyle(.menu)
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("No trusted device configured")
@@ -372,15 +379,6 @@ struct SettingsView: View {
             return nil
         }
         return image
-    }
-
-    private func deviceIcon(for name: String) -> String {
-        let lowered = name.lowercased()
-        if lowered.contains("iphone") { return "iphone" }
-        if lowered.contains("watch") { return "applewatch" }
-        if lowered.contains("ipad") { return "ipad" }
-        if lowered.contains("airpods") { return "airpodspro" }
-        return "wave.3.right"
     }
 
     @ViewBuilder

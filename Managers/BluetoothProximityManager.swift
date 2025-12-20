@@ -31,10 +31,13 @@ class BluetoothProximityManager: NSObject, ObservableObject {
     private var connectedPeripheral: CBPeripheral?
     private var rssiReadTimer: Timer?
 
-    // Hysteresis thresholds to prevent oscillation
-    // -70 dBm ≈ 3-5m range, suitable for detecting nearby devices
-    private let rssiPresentThreshold: Int = -70  // Device present when above this
-    private let rssiAwayThreshold: Int = -80     // Device away when below this
+    // Dynamic thresholds from user settings (hysteresis to prevent oscillation)
+    private var rssiPresentThreshold: Int {
+        AppSettings.shared.proximityDistance.presentThreshold
+    }
+    private var rssiAwayThreshold: Int {
+        AppSettings.shared.proximityDistance.awayThreshold
+    }
 
     // UserDefaults key for persistence
     private let trustedDeviceKey = "MacGuard.trustedDevice"
@@ -76,6 +79,8 @@ class BluetoothProximityManager: NSObject, ObservableObject {
     /// Reload trusted device from UserDefaults (called after external update)
     func reloadTrustedDevice() {
         loadTrustedDevice()
+        // Start scanning for the newly loaded device
+        startScanningIfNeeded()
     }
 
     private func loadTrustedDevice() {
