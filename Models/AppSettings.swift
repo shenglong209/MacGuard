@@ -4,6 +4,42 @@
 
 import SwiftUI
 
+/// Proximity distance presets for trusted device detection
+enum ProximityDistance: String, CaseIterable, Identifiable {
+    case near = "Near"      // ~1-2m
+    case medium = "Medium"  // ~3-5m (default)
+    case far = "Far"        // ~7-10m
+
+    var id: String { rawValue }
+
+    /// RSSI threshold for device presence (signal stronger than this = nearby)
+    var presentThreshold: Int {
+        switch self {
+        case .near: return -55
+        case .medium: return -70
+        case .far: return -80
+        }
+    }
+
+    /// RSSI threshold for device away (signal weaker than this = away)
+    var awayThreshold: Int {
+        switch self {
+        case .near: return -65
+        case .medium: return -80
+        case .far: return -90
+        }
+    }
+
+    /// Human-readable description
+    var description: String {
+        switch self {
+        case .near: return "~1-2 meters"
+        case .medium: return "~3-5 meters"
+        case .far: return "~7-10 meters"
+        }
+    }
+}
+
 /// Available alarm sounds
 enum AlarmSound: String, CaseIterable, Identifiable {
     // Bundled sound
@@ -65,6 +101,16 @@ class AppSettings: ObservableObject {
     @AppStorage("customSoundPath") var customSoundPath: String = ""
     @AppStorage("countdownDuration") var countdownDuration: Int = 3
     @AppStorage("lidCloseProtection") private var _lidCloseProtection: Bool = false
+    @AppStorage("proximityDistance") private var proximityDistanceRaw: String = ProximityDistance.medium.rawValue
+
+    /// Proximity distance for trusted device detection
+    var proximityDistance: ProximityDistance {
+        get { ProximityDistance(rawValue: proximityDistanceRaw) ?? .medium }
+        set {
+            proximityDistanceRaw = newValue.rawValue
+            objectWillChange.send()
+        }
+    }
 
     /// Lid close protection with pmset control
     var lidCloseProtection: Bool {

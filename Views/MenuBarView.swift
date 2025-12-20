@@ -107,7 +107,7 @@ struct MenuBarView: View {
                 Circle()
                     .fill(device.isNearby ? Color.green.opacity(0.15) : Color.secondary.opacity(0.1))
                     .frame(width: 32, height: 32)
-                Image(systemName: deviceIcon(for: device.name))
+                Image(systemName: device.icon)
                     .font(.system(size: 14))
                     .foregroundStyle(device.isNearby ? .green : .secondary)
             }
@@ -279,17 +279,6 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: - Helpers
-
-    private func deviceIcon(for name: String) -> String {
-        let lowered = name.lowercased()
-        if lowered.contains("iphone") { return "iphone" }
-        if lowered.contains("watch") { return "applewatch" }
-        if lowered.contains("ipad") { return "ipad" }
-        if lowered.contains("airpods") { return "airpodspro" }
-        if lowered.contains("mac") { return "laptopcomputer" }
-        return "wave.3.right"
-    }
 }
 
 #Preview {

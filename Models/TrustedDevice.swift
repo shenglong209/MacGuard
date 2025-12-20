@@ -30,6 +30,22 @@ struct TrustedDevice: Identifiable, Codable, Hashable {
     /// RSSI threshold for "nearby" detection (-70 dBm ≈ 3-5m)
     static let rssiThreshold: Int = -60
 
+    /// SF Symbol icon based on device name
+    var icon: String {
+        Self.icon(for: name)
+    }
+
+    /// Get SF Symbol icon for a device name
+    static func icon(for name: String) -> String {
+        let lowered = name.lowercased()
+        if lowered.contains("iphone") { return "iphone" }
+        if lowered.contains("watch") { return "applewatch" }
+        if lowered.contains("ipad") { return "ipad" }
+        if lowered.contains("mac") { return "laptopcomputer" }
+        if lowered.contains("airpods") { return "airpodspro" }
+        return "iphone"
+    }
+
     // MARK: - Initialization
 
     init(id: UUID, name: String) {
