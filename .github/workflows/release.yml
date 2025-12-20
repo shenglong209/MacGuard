@@ -278,9 +278,41 @@ jobs:
       - name: Update appcast.xml
         env:
           VERSION: ${{ steps.version.outputs.new }}
+          PR_TITLE: ${{ github.event.pull_request.title || 'Manual release' }}
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
         run: |
           BUILD_NUM="${VERSION//./}"
           PUB_DATE=$(LC_TIME=C date "+%a, %d %b %Y %H:%M:%S %z")
+
+          # Build changelog from PR info
+          CHANGELOG_FILE=$(mktemp)
+
+          if [ -n "$PR_BODY" ]; then
+            # Extract Summary section from PR body (between ## Summary and next ##)
+            echo "$PR_BODY" | sed -n '/^## Summary/,/^##/p' | head -n -1 | tail -n +2 > "$CHANGELOG_FILE"
+
+            # If no Summary section, use first paragraph
+            if [ ! -s "$CHANGELOG_FILE" ]; then
+              echo "$PR_BODY" | head -20 > "$CHANGELOG_FILE"
+            fi
+          fi
+
+          # Convert markdown list to HTML
+          if [ -s "$CHANGELOG_FILE" ]; then
+            CHANGELOG_HTML="<ul>"
+            while IFS= read -r line; do
+              # Convert "- item" to "<li>item</li>"
+              if echo "$line" | grep -q "^- "; then
+                ITEM_TEXT=$(echo "$line" | sed 's/^- //')
+                CHANGELOG_HTML="${CHANGELOG_HTML}<li>${ITEM_TEXT}</li>"
+              fi
+            done < "$CHANGELOG_FILE"
+            CHANGELOG_HTML="${CHANGELOG_HTML}</ul>"
+          else
+            CHANGELOG_HTML="<p>${PR_TITLE}</p>"
+          fi
+
+          rm -f "$CHANGELOG_FILE"
 
           # Create new item
           ITEM="    <item>
@@ -291,7 +323,7 @@ jobs:
                 <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
                 <description><![CDATA[
                   <h3>What's New in ${VERSION}</h3>
-                  <p>See release notes on GitHub.</p>
+                  ${CHANGELOG_HTML}
                 ]]></description>
                 <pubDate>${PUB_DATE}</pubDate>
                 <enclosure
