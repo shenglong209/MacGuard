@@ -12,11 +12,16 @@ struct TrustedDevice: Identifiable, Codable, Hashable {
     /// User-friendly device name
     var name: String
 
-    /// Last measured RSSI value (signal strength)
+    /// Last measured RSSI value (signal strength) - runtime only, not persisted
     var lastRSSI: Int?
 
-    /// Last time device was seen
+    /// Last time device was seen - runtime only, not persisted
     var lastSeen: Date?
+
+    // Only persist id and name
+    enum CodingKeys: String, CodingKey {
+        case id, name
+    }
 
     // MARK: - Computed Properties
 
