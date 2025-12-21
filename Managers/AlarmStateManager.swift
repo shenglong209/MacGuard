@@ -279,8 +279,9 @@ class AlarmStateManager: ObservableObject {
         print("[MacGuard] Starting auto-arm timer (\(delay)s)")
 
         autoArmTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delay), repeats: false) { [weak self] _ in
+            guard let self else { return }
             Task { @MainActor in
-                guard let self = self, self.state == .idle else { return }
+                guard self.state == .idle else { return }
                 print("[MacGuard] Auto-arming - trusted device still away")
                 self.arm()
             }
