@@ -177,6 +177,9 @@ class AlarmStateManager: ObservableObject {
 
         state = .idle
         print("[MacGuard] Disarmed")
+
+        // Restart background scanning for UI display
+        bluetoothManager.startScanning()
     }
 
     /// Attempt to disarm with biometric authentication
@@ -370,8 +373,8 @@ extension AlarmStateManager: BluetoothProximityDelegate {
             // Cancel pending auto-arm
             self.cancelAutoArmTimer()
 
-            // Auto-disarm if in triggered or alarming state
-            if self.state == .triggered || self.state == .alarming {
+            // Auto-disarm if armed, triggered, or alarming
+            if self.state == .armed || self.state == .triggered || self.state == .alarming {
                 print("[MacGuard] Trusted device detected - auto-disarming")
                 self.disarm()
             }
