@@ -158,6 +158,18 @@ struct SettingsView: View {
                             }
                         }
                         .pickerStyle(.menu)
+
+                        Toggle("Auto-arm when device leaves", isOn: $settings.autoArmOnDeviceLeave)
+
+                        if settings.autoArmOnDeviceLeave {
+                            Picker("Grace period", selection: $settings.autoArmGracePeriod) {
+                                Text("10 seconds").tag(10)
+                                Text("15 seconds").tag(15)
+                                Text("30 seconds").tag(30)
+                                Text("60 seconds").tag(60)
+                            }
+                            .pickerStyle(.menu)
+                        }
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("No trusted device configured")

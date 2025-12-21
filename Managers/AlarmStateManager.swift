@@ -26,6 +26,7 @@ class AlarmStateManager: ObservableObject {
     private var countdownTimer: Timer?
     private var permissionCheckTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
+    private var autoArmTimer: Timer?
     private let inputMonitor = InputMonitor()
     private let sleepMonitor = SleepMonitor()
     private let powerMonitor = PowerMonitor()
@@ -163,6 +164,7 @@ class AlarmStateManager: ObservableObject {
     func disarm() {
         countdownTimer?.invalidate()
         countdownTimer = nil
+        cancelAutoArmTimer()
         inputMonitor.stopMonitoring()
         sleepMonitor.stopMonitoring()
         powerMonitor.stopMonitoring()
@@ -268,6 +270,30 @@ class AlarmStateManager: ObservableObject {
             }
         }
     }
+
+    // MARK: - Auto-Arm Timer
+
+    private func startAutoArmTimer() {
+        autoArmTimer?.invalidate()
+        let delay = AppSettings.shared.autoArmGracePeriod
+        print("[MacGuard] Starting auto-arm timer (\(delay)s)")
+
+        autoArmTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delay), repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self, self.state == .idle else { return }
+                print("[MacGuard] Auto-arming - trusted device still away")
+                self.arm()
+            }
+        }
+    }
+
+    private func cancelAutoArmTimer() {
+        if autoArmTimer != nil {
+            print("[MacGuard] Cancelled auto-arm timer - device returned")
+        }
+        autoArmTimer?.invalidate()
+        autoArmTimer = nil
+    }
 }
 
 // MARK: - InputMonitorDelegate
@@ -340,6 +366,9 @@ extension AlarmStateManager: PowerMonitorDelegate {
 extension AlarmStateManager: BluetoothProximityDelegate {
     nonisolated func trustedDeviceNearby(_ device: TrustedDevice) {
         Task { @MainActor in
+            // Cancel pending auto-arm
+            self.cancelAutoArmTimer()
+
             // Auto-disarm if in triggered or alarming state
             if self.state == .triggered || self.state == .alarming {
                 print("[MacGuard] Trusted device detected - auto-disarming")
@@ -349,8 +378,14 @@ extension AlarmStateManager: BluetoothProximityDelegate {
     }
 
     nonisolated func trustedDeviceAway(_ device: TrustedDevice) {
-        // No automatic action when device leaves
-        print("[MacGuard] Trusted device left proximity")
+        Task { @MainActor in
+            print("[MacGuard] Trusted device left proximity")
+
+            guard AppSettings.shared.autoArmOnDeviceLeave,
+                  self.state == .idle else { return }
+
+            self.startAutoArmTimer()
+        }
     }
 
     nonisolated func bluetoothStateChanged(_ state: CBManagerState) {
