@@ -11,15 +11,19 @@ struct CountdownOverlayView: View {
     @State private var showPINEntry = false
     @State private var iconScale: CGFloat = 1.0
     @State private var pulseOpacity: Double = 0.3
+    @State private var pulseScale: CGFloat = 1.0
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Dark overlay background with gradient - fixed position
+                // Full-screen glass background
+                FullScreenGlass()
+
+                // Additional dark gradient for depth (less opaque with glass)
                 LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.95),
-                        alarmManager.state == .alarming ? Color.red.opacity(0.3) : Color.black.opacity(0.85)
+                    stops: [
+                        .init(color: .black.opacity(0.60), location: 0.0),
+                        .init(color: .black.opacity(alarmManager.state == .alarming ? 0.40 : 0.50), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -29,100 +33,15 @@ struct CountdownOverlayView: View {
                 // Pulsing background circle for alarm state - centered and fixed
                 if alarmManager.state == .alarming {
                     Circle()
-                        .fill(Color.red.opacity(pulseOpacity))
-                        .frame(width: 300, height: 300)
-                        .blur(radius: 60)
+                        .fill(Theme.StateColor.alarming.opacity(pulseOpacity))
+                        .frame(width: 350, height: 350)
+                        .blur(radius: 80)
+                        .scaleEffect(pulseScale)
                         .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                 }
 
-                VStack(spacing: 30) {
-                // Warning icon with animation
-                ZStack {
-                    // Glow effect
-                    Image(systemName: iconName)
-                        .font(.system(size: 90))
-                        .foregroundStyle(iconColor.opacity(0.5))
-                        .blur(radius: 20)
-
-                    Image(systemName: iconName)
-                        .font(.system(size: 80))
-                        .foregroundStyle(iconColor)
-                        .symbolRenderingMode(.hierarchical)
-                }
-                .scaleEffect(iconScale)
-
-                // Title
-                Text(titleText)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .tracking(alarmManager.state == .alarming ? 4 : 1)
-
-                // Countdown (only in triggered state)
-                if alarmManager.state == .triggered {
-                    ZStack {
-                        // Background ring
-                        Circle()
-                            .stroke(Color.red.opacity(0.3), lineWidth: 8)
-                            .frame(width: 160, height: 160)
-
-                        // Progress ring
-                        Circle()
-                            .trim(from: 0, to: CGFloat(alarmManager.countdownSeconds) / CGFloat(AppSettings.shared.countdownDuration))
-                            .stroke(Color.red, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                            .frame(width: 160, height: 160)
-                            .rotationEffect(.degrees(-90))
-
-                        Text("\(alarmManager.countdownSeconds)")
-                            .font(.system(size: 72, weight: .bold, design: .rounded))
-                            .foregroundStyle(.red)
-                    }
-
-                    Text("Authenticate to disarm")
-                        .font(.body)
-                        .foregroundStyle(.gray)
-                }
-
-                // Auth buttons or PIN entry (mutually exclusive)
-                if showPINEntry {
-                    PINOverlay(
-                        isPresented: $showPINEntry,
-                        alarmManager: alarmManager
-                    )
-                    .transition(.scale.combined(with: .opacity))
-                } else {
-                    HStack(spacing: 20) {
-                        if alarmManager.authManager.hasBiometrics {
-                            Button(action: authenticateWithBiometrics) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "touchid")
-                                        .font(.title)
-                                    Text("Touch ID")
-                                        .font(.title3.weight(.semibold))
-                                }
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 16)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.blue)
-                        }
-
-                        if alarmManager.authManager.hasPIN {
-                            Button(action: { withAnimation { showPINEntry = true } }) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "number.square")
-                                        .font(.title)
-                                    Text("Enter PIN")
-                                        .font(.title3.weight(.semibold))
-                                }
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 16)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.white)
-                        }
-                    }
-                }
-            }
+                // Main content card
+                countdownCard
             }
         }
         .onAppear {
@@ -133,6 +52,167 @@ struct CountdownOverlayView: View {
         }
     }
 
+    // MARK: - Countdown Card
+
+    private var countdownCard: some View {
+        VStack(spacing: Theme.Spacing.xxl) {
+            // Warning icon with glow
+            warningIcon
+
+            // Title
+            Text(titleText)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .tracking(alarmManager.state == .alarming ? 4 : 2)
+
+            // Countdown ring (triggered state)
+            if alarmManager.state == .triggered {
+                countdownRing
+
+                Text("Authenticate to disarm")
+                    .font(.body)
+                    .foregroundStyle(.gray)
+            }
+
+            // Auth buttons or PIN entry
+            if showPINEntry {
+                PINOverlay(
+                    isPresented: $showPINEntry,
+                    alarmManager: alarmManager
+                )
+                .transition(.scale.combined(with: .opacity))
+            } else {
+                authButtons
+            }
+        }
+        .padding(Theme.Spacing.xxxl + 16)
+        .background {
+            GlassBackground(
+                material: .hudWindow,
+                cornerRadius: Theme.CornerRadius.xxxl
+            )
+            .intenseShadow()
+        }
+    }
+
+    // MARK: - Warning Icon
+
+    private var warningIcon: some View {
+        ZStack {
+            // Glow effect
+            Image(systemName: iconName)
+                .font(.system(size: 90))
+                .foregroundStyle(iconColor.opacity(0.6))
+                .blur(radius: 25)
+
+            // Main icon
+            Image(systemName: iconName)
+                .font(.system(size: 80))
+                .foregroundStyle(iconColor)
+                .symbolRenderingMode(.hierarchical)
+        }
+        .scaleEffect(iconScale)
+    }
+
+    // MARK: - Countdown Ring
+
+    private var countdownRing: some View {
+        ZStack {
+            // Background ring
+            Circle()
+                .stroke(Color.white.opacity(0.2), lineWidth: 8)
+                .frame(width: 160, height: 160)
+
+            // Progress ring
+            Circle()
+                .trim(from: 0, to: ringProgress)
+                .stroke(
+                    LinearGradient(
+                        colors: [Theme.StateColor.alarming, Theme.StateColor.triggered],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                )
+                .frame(width: 160, height: 160)
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 1), value: ringProgress)
+
+            // Countdown number
+            Text("\(alarmManager.countdownSeconds)")
+                .font(.system(size: 72, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private var ringProgress: CGFloat {
+        guard AppSettings.shared.countdownDuration > 0 else { return 0 }
+        return CGFloat(alarmManager.countdownSeconds) / CGFloat(AppSettings.shared.countdownDuration)
+    }
+
+    // MARK: - Auth Buttons
+
+    private var authButtons: some View {
+        VStack(spacing: Theme.Spacing.lg) {
+            // Touch ID button (if available)
+            if alarmManager.authManager.hasBiometrics {
+                Button(action: authenticateWithBiometrics) {
+                    HStack(spacing: Theme.Spacing.md) {
+                        Image(systemName: "touchid")
+                            .font(.title2)
+                        Text("Touch ID")
+                            .font(.headline)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, Theme.Spacing.xxl)
+                    .padding(.vertical, Theme.Spacing.lg)
+                }
+                .buttonStyle(.plain)
+                .background {
+                    Capsule()
+                        .fill(.clear)
+                        .background(
+                            VisualEffectView(
+                                material: .hudWindow,
+                                blendingMode: .withinWindow,
+                                isEmphasized: true
+                            )
+                        )
+                        .clipShape(Capsule())
+                }
+                .glassCapsuleBorder(prominent: true)
+            }
+
+            // PIN button
+            if alarmManager.authManager.hasPIN {
+                Button(action: { withAnimation { showPINEntry = true } }) {
+                    HStack(spacing: Theme.Spacing.md) {
+                        Image(systemName: "number.square")
+                            .font(.title3)
+                        Text("Enter PIN")
+                            .font(.headline)
+                    }
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, Theme.Spacing.xl)
+                    .padding(.vertical, Theme.Spacing.md)
+                }
+                .buttonStyle(.plain)
+                .background {
+                    Capsule()
+                        .fill(.clear)
+                        .background(
+                            VisualEffectView(
+                                material: .selection,
+                                blendingMode: .withinWindow
+                            )
+                        )
+                        .clipShape(Capsule())
+                }
+                .glassCapsuleBorder()
+            }
+        }
+    }
+
     // MARK: - Computed Properties
 
     private var iconName: String {
@@ -140,7 +220,7 @@ struct CountdownOverlayView: View {
     }
 
     private var iconColor: Color {
-        alarmManager.state == .alarming ? .red : .yellow
+        alarmManager.state == .alarming ? Theme.StateColor.alarming : Theme.StateColor.triggered
     }
 
     private var titleText: String {
@@ -157,8 +237,9 @@ struct CountdownOverlayView: View {
 
         // Background pulse for alarm state
         if alarmManager.state == .alarming {
-            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
                 pulseOpacity = 0.6
+                pulseScale = 1.1
             }
         }
     }
@@ -174,22 +255,25 @@ struct CountdownOverlayView: View {
     }
 }
 
-/// PIN entry overlay
+/// PIN entry overlay with glass styling
 struct PINOverlay: View {
     @Binding var isPresented: Bool
     @ObservedObject var alarmManager: AlarmStateManager
 
     @State private var pin = ""
     @State private var showError = false
-    @State private var shake = false
+    @State private var shakeOffset: CGFloat = 0
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: Theme.Spacing.xl) {
             // Header
-            VStack(spacing: 8) {
-                Image(systemName: "number.square.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(.blue)
+            VStack(spacing: Theme.Spacing.sm) {
+                ZStack {
+                    GlassIconCircle(size: 48, material: .selection)
+                    Image(systemName: "number.square.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Theme.Accent.primary)
+                }
 
                 Text("Enter PIN")
                     .font(.title3.weight(.semibold))
@@ -199,30 +283,28 @@ struct PINOverlay: View {
             // PIN input field
             OverlaySecureTextField(text: $pin, placeholder: "PIN", onSubmit: validate)
                 .frame(width: 180, height: 32)
-                .offset(x: shake ? -10 : 0)
+                .offset(x: shakeOffset)
 
             // Error message
             if showError {
-                HStack(spacing: 6) {
+                HStack(spacing: Theme.Spacing.xs) {
                     Image(systemName: "xmark.circle.fill")
                     Text("Incorrect PIN")
                 }
                 .font(.system(.callout, design: .rounded))
-                .foregroundStyle(.red)
+                .foregroundStyle(Theme.StateColor.alarming)
             }
 
             // Action buttons
-            HStack(spacing: 16) {
+            HStack(spacing: Theme.Spacing.lg) {
                 Button {
                     withAnimation { isPresented = false }
                 } label: {
                     Text("Cancel")
                         .font(.body.weight(.medium))
                         .frame(width: 80)
-                        .padding(.vertical, 10)
                 }
-                .buttonStyle(.bordered)
-                .tint(.gray)
+                .buttonStyle(GlassSecondaryButtonStyle())
 
                 Button {
                     validate()
@@ -230,20 +312,17 @@ struct PINOverlay: View {
                     Text("Verify")
                         .font(.body.weight(.semibold))
                         .frame(width: 80)
-                        .padding(.vertical, 10)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
             }
         }
-        .padding(32)
+        .padding(Theme.Spacing.xxxl)
         .background {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(.white.opacity(0.2), lineWidth: 1)
-                }
+            GlassBackground(
+                material: .hudWindow,
+                cornerRadius: Theme.CornerRadius.xxl
+            )
+            .modalShadow()
         }
     }
 
@@ -254,12 +333,17 @@ struct PINOverlay: View {
             showError = true
             pin = ""
             // Shake animation
-            withAnimation(.default) {
-                shake = true
+            withAnimation(.default.speed(2)) {
+                shakeOffset = -10
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.default) {
-                    shake = false
+                withAnimation(.default.speed(2)) {
+                    shakeOffset = 10
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                withAnimation(.default.speed(2)) {
+                    shakeOffset = 0
                 }
             }
         }
