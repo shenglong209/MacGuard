@@ -102,27 +102,28 @@ struct MenuBarView: View {
     }
 
     private func deviceSection(_ device: TrustedDevice) -> some View {
-        HStack(spacing: 10) {
+        let isNearby = alarmManager.bluetoothManager.isDeviceNearby
+        return HStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(device.isNearby ? Color.green.opacity(0.15) : Color.secondary.opacity(0.1))
+                    .fill(isNearby ? Color.green.opacity(0.15) : Color.secondary.opacity(0.1))
                     .frame(width: 32, height: 32)
                 Image(systemName: device.icon)
                     .font(.system(size: 14))
-                    .foregroundStyle(device.isNearby ? .green : .secondary)
+                    .foregroundStyle(isNearby ? .green : .secondary)
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.name)
                     .font(.subheadline.weight(.medium))
-                Text(device.isNearby ? "Nearby" : "Not detected")
+                Text(isNearby ? "Nearby" : "Not detected")
                     .font(.caption)
-                    .foregroundStyle(device.isNearby ? .green : .secondary)
+                    .foregroundStyle(isNearby ? .green : .secondary)
             }
 
             Spacer()
 
-            if device.isNearby {
+            if isNearby {
                 Circle()
                     .fill(.green)
                     .frame(width: 8, height: 8)

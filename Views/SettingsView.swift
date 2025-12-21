@@ -140,7 +140,7 @@ struct SettingsView: View {
                                 }
                             }
                             Spacer()
-                            if device.isNearby {
+                            if alarmManager.bluetoothManager.isDeviceNearby {
                                 Label("Nearby", systemImage: "checkmark.circle.fill")
                                     .font(.caption)
                                     .foregroundColor(.green)
