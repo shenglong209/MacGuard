@@ -61,6 +61,17 @@ enum Theme {
         static let xxl: CGFloat = 24
         static let xxxl: CGFloat = 32
     }
+
+    // MARK: - Animation
+
+    enum Animation {
+        static let buttonPressDuration: Double = 0.1
+        static let hoverDuration: Double = 0.15
+        static let buttonPressScale: CGFloat = 0.96
+        static let buttonPressScaleSubtle: CGFloat = 0.97
+        static let iconPressScale: CGFloat = 0.92
+        static let pillPressScale: CGFloat = 0.95
+    }
 }
 
 // MARK: - Shadow Modifiers

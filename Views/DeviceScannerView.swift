@@ -173,15 +173,15 @@ struct DiscoveredDevice: Identifiable {
     let rssi: Int
 }
 
-/// Container view
+/// Container view with glass styling
 struct DeviceScannerContainerView: View {
     @ObservedObject var viewModel: DeviceScannerViewModel
     let onDismiss: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 12) {
+            // Header with glass background
+            HStack(spacing: Theme.Spacing.md) {
                 if viewModel.isScanning {
                     ProgressView()
                         .scaleEffect(0.8)
@@ -189,97 +189,38 @@ struct DeviceScannerContainerView: View {
                         .font(.body)
                         .foregroundStyle(.secondary)
                 } else {
-                    Image(systemName: "antenna.radiowaves.left.and.right")
-                        .foregroundStyle(.blue)
+                    ZStack {
+                        GlassIconCircle(size: 28, material: .selection)
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Theme.Accent.primary)
+                    }
                     Text("Select a paired device")
                         .font(.body.weight(.medium))
                 }
                 Spacer()
             }
-            .padding()
-            .background(Color(nsColor: .windowBackgroundColor))
-
-            Divider()
+            .padding(Theme.Spacing.lg)
+            .background {
+                GlassBackground(material: .headerView, cornerRadius: 0)
+            }
 
             // Device list
             if viewModel.discoveredDevices.isEmpty {
-                VStack(spacing: 16) {
-                    Spacer()
-
-                    ZStack {
-                        Circle()
-                            .fill(.blue.opacity(0.1))
-                            .frame(width: 100, height: 100)
-
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.blue)
-                    }
-
-                    VStack(spacing: 6) {
-                        Text("Looking for paired devices...")
-                            .font(.system(.headline, design: .rounded))
-                        Text("Only devices paired with this Mac will appear")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-
-                    Spacer()
-                }
+                emptyStateView
             } else {
-                List(viewModel.discoveredDevices) { device in
-                    Button {
-                        viewModel.selectDevice(device)
-                        onDismiss()
-                    } label: {
-                        HStack(spacing: 12) {
-                            // Device icon with background
-                            ZStack {
-                                Circle()
-                                    .fill(.blue.opacity(0.1))
-                                    .frame(width: 40, height: 40)
-
-                                Image(systemName: TrustedDevice.icon(for: device.name))
-                                    .font(.system(size: 18))
-                                    .foregroundStyle(.blue)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(device.name)
-                                    .font(.body.weight(.medium))
-
-                                // Signal strength indicator
-                                HStack(spacing: 4) {
-                                    SignalStrengthView(rssi: device.rssi)
-                                    Text(signalStrengthText(for: device.rssi))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.plain)
-                }
+                deviceListView
             }
 
-            Divider()
-
-            // Footer
+            // Footer with glass background
             HStack {
                 Button {
                     onDismiss()
                 } label: {
                     Text("Cancel")
+                        .frame(width: 70)
                 }
+                .buttonStyle(GlassSecondaryButtonStyle())
 
                 Spacer()
 
@@ -295,17 +236,126 @@ struct DeviceScannerContainerView: View {
                         systemImage: viewModel.isScanning ? "stop.fill" : "arrow.clockwise"
                     )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
             }
-            .padding()
+            .padding(Theme.Spacing.lg)
+            .background {
+                GlassBackground(material: .headerView, cornerRadius: 0)
+            }
         }
         .frame(width: 350, height: 400)
     }
 
-    private func signalStrengthText(for rssi: Int) -> String {
-        if rssi >= -50 { return "Excellent" }
-        if rssi >= -60 { return "Good" }
-        if rssi >= -70 { return "Fair" }
+    // MARK: - Empty State
+
+    private var emptyStateView: some View {
+        VStack(spacing: Theme.Spacing.lg) {
+            Spacer()
+
+            ZStack {
+                GlassIconCircle(size: 100, material: .selection)
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 40))
+                    .foregroundStyle(Theme.Accent.primary)
+            }
+
+            VStack(spacing: Theme.Spacing.sm) {
+                Text("Looking for paired devices...")
+                    .font(.system(.headline, design: .rounded))
+                Text("Only devices paired with this Mac will appear")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Device List
+
+    private var deviceListView: some View {
+        ScrollView {
+            LazyVStack(spacing: Theme.Spacing.sm) {
+                ForEach(viewModel.discoveredDevices) { device in
+                    DeviceRowButton(device: device) {
+                        viewModel.selectDevice(device)
+                        onDismiss()
+                    }
+                }
+            }
+            .padding(Theme.Spacing.md)
+        }
+    }
+
+}
+
+// MARK: - Device Row Button
+
+struct DeviceRowButton: View {
+    let device: DiscoveredDevice
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Spacing.md) {
+                // Device icon with glass background
+                ZStack {
+                    GlassIconCircle(size: 40, material: .selection)
+                    Image(systemName: TrustedDevice.icon(for: device.name))
+                        .font(.system(size: 18))
+                        .foregroundStyle(Theme.Accent.primary)
+                }
+
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    Text(device.name)
+                        .font(.body.weight(.medium))
+
+                    // Signal strength indicator
+                    HStack(spacing: Theme.Spacing.xs) {
+                        SignalStrengthView(rssi: device.rssi)
+                        Text(signalStrengthText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(Theme.Spacing.md)
+            .background {
+                RoundedRectangle(cornerRadius: Theme.CornerRadius.md)
+                    .fill(.clear)
+                    .background(
+                        VisualEffectView(
+                            material: .selection,
+                            blendingMode: .withinWindow
+                        )
+                        .opacity(isHovered ? 1 : 0)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.CornerRadius.md))
+            }
+            .glassBorder(cornerRadius: Theme.CornerRadius.md)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: Theme.Animation.hoverDuration)) {
+                isHovered = hovering
+            }
+        }
+    }
+
+    private var signalStrengthText: String {
+        if device.rssi >= -50 { return "Excellent" }
+        if device.rssi >= -60 { return "Good" }
+        if device.rssi >= -70 { return "Fair" }
         return "Weak"
     }
 }

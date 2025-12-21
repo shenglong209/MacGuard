@@ -1,6 +1,13 @@
-// GlassComponents.swift
-// MacGuard - Liquid Glass UI Theme
-// Created: 2025-12-21
+# Phase 2: Glass Background Components
+
+**Goal:** Create reusable glass background views and section containers.
+
+---
+
+## 2.1 GlassComponents.swift
+
+```swift
+// Theme/GlassComponents.swift
 
 import SwiftUI
 
@@ -190,43 +197,84 @@ struct FullScreenGlass: View {
         .ignoresSafeArea()
     }
 }
+```
 
-// MARK: - Glass Icon Circle
+---
 
-/// Circular glass background for icons
-struct GlassIconCircle: View {
-    var size: CGFloat = 32
-    var material: NSVisualEffectView.Material = .selection
-    var accessibilityLabel: String? = nil
+## 2.2 View Modifier Extensions
 
-    var body: some View {
-        Circle()
-            .fill(.clear)
-            .background(
-                VisualEffectView(
-                    material: material,
-                    blendingMode: .withinWindow
-                )
+Add to `GlassModifiers.swift`:
+
+```swift
+// MARK: - Glass Background Modifier
+
+extension View {
+    /// Apply glass background with material
+    func glassBackground(
+        material: NSVisualEffectView.Material = .menu,
+        cornerRadius: CGFloat = Theme.CornerRadius.lg
+    ) -> some View {
+        self.background {
+            GlassBackground(material: material, cornerRadius: cornerRadius)
+        }
+    }
+
+    /// Apply clear glass background (for media overlays)
+    func clearGlassBackground(
+        overBrightContent: Bool = false,
+        cornerRadius: CGFloat = Theme.CornerRadius.lg
+    ) -> some View {
+        self.background {
+            ClearGlassBackground(
+                overBrightContent: overBrightContent,
+                cornerRadius: cornerRadius
             )
-            .clipShape(Circle())
-            .frame(width: size, height: size)
-            .overlay(
-                Circle()
-                    .strokeBorder(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .white.opacity(0.15), location: 0.0),
-                                .init(color: .clear, location: 0.5),
-                                .init(color: .black.opacity(0.08), location: 1.0)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityLabel ?? "")
-            .accessibilityHidden(accessibilityLabel == nil)
+        }
     }
 }
+```
+
+---
+
+## Usage Examples
+
+### Menu Dropdown
+```swift
+VStack(spacing: 0) {
+    // menu items
+}
+.padding(.vertical, 8)
+.background {
+    GlassBackground(material: .menu, cornerRadius: 10)
+        .dropdownShadow()
+}
+```
+
+### Settings Section
+```swift
+GlassSection(title: "Security") {
+    Toggle("Lock screen when armed", isOn: $lockScreen)
+    Toggle("Lid close alarm", isOn: $lidCloseAlarm)
+}
+```
+
+### Countdown Card
+```swift
+GlassCard(cornerRadius: 24) {
+    VStack(spacing: 24) {
+        Text("\(countdown)")
+            .font(.system(size: 120, weight: .bold, design: .rounded))
+        Text("Touch ID or PIN to disarm")
+    }
+    .padding(48)
+}
+```
+
+---
+
+## Verification
+
+1. Test `GlassBackground` renders blur effect in preview
+2. Test `GlassSection` wraps content correctly
+3. Verify glass border gradient visible on light/dark backgrounds
+4. Test `FullScreenGlass` covers entire screen
