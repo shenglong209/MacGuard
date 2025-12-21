@@ -33,9 +33,7 @@ Anti-theft alarm app for macOS. Protects your laptop in public places by trigger
 
 1. Download the latest DMG from [GitHub Releases](https://github.com/shenglong209/MacGuard/releases)
 2. Open the DMG and drag MacGuard to Applications
-3. **First launch** - Right-click the app → "Open" → Click "Open" in the dialog
-   - This is required because the app is not code-signed with Apple Developer ID
-   - Alternative: Run `xattr -cr /Applications/MacGuard.app` in Terminal
+3. **First launch** - Run `xattr -cr /Applications/MacGuard.app` in Terminal
 
 ### Auto-Update
 
