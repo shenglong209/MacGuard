@@ -102,6 +102,8 @@ class AppSettings: ObservableObject {
     @AppStorage("countdownDuration") var countdownDuration: Int = 3
     @AppStorage("lidCloseProtection") private var _lidCloseProtection: Bool = false
     @AppStorage("proximityDistance") private var proximityDistanceRaw: String = ProximityDistance.medium.rawValue
+    @AppStorage("autoArmOnDeviceLeave") var autoArmOnDeviceLeave: Bool = false
+    @AppStorage("autoArmGracePeriod") var autoArmGracePeriod: Int = 15
 
     /// Proximity distance for trusted device detection
     var proximityDistance: ProximityDistance {
