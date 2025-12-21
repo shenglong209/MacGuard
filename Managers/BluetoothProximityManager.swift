@@ -24,6 +24,7 @@ class BluetoothProximityManager: NSObject, ObservableObject {
     @Published var isBluetoothEnabled = false
     @Published private(set) var trustedDevice: TrustedDevice?
     @Published var isScanning = false
+    @Published private(set) var isDeviceNearby = false
 
     // MARK: - Private Properties
 
@@ -141,6 +142,7 @@ class BluetoothProximityManager: NSObject, ObservableObject {
         }
 
         isScanning = false
+        isDeviceNearby = false
         print("[Bluetooth] Stopped scanning")
     }
 
@@ -163,9 +165,11 @@ class BluetoothProximityManager: NSObject, ObservableObject {
         let isNearby = rssi > rssiPresentThreshold
 
         if !wasNearby && isNearby {
+            isDeviceNearby = true
             print("[Bluetooth] Trusted device nearby (RSSI: \(rssi))")
             delegate?.trustedDeviceNearby(device)
         } else if wasNearby && rssi < rssiAwayThreshold {
+            isDeviceNearby = false
             print("[Bluetooth] Trusted device away (RSSI: \(rssi))")
             delegate?.trustedDeviceAway(device)
         }
@@ -173,7 +177,7 @@ class BluetoothProximityManager: NSObject, ObservableObject {
 
     /// Check if trusted device is currently nearby
     func isTrustedDeviceNearby() -> Bool {
-        trustedDevice?.isNearby ?? false
+        isDeviceNearby
     }
 }
 
