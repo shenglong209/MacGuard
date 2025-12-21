@@ -4,36 +4,6 @@
 
 import SwiftUI
 
-/// Custom button style with hover effect for menu items
-struct MenuItemButtonStyle: ButtonStyle {
-    @State private var isHovered = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
-            )
-            .contentShape(Rectangle())
-            .onHover { hovering in
-                isHovered = hovering
-            }
-    }
-
-    private func backgroundColor(isPressed: Bool) -> Color {
-        if isPressed {
-            return Color.accentColor.opacity(0.2)
-        } else if isHovered {
-            return Color.primary.opacity(0.08)
-        } else {
-            return Color.clear
-        }
-    }
-}
-
 /// Menu bar dropdown content view (window style)
 struct MenuBarView: View {
     @EnvironmentObject var alarmManager: AlarmStateManager
@@ -43,34 +13,44 @@ struct MenuBarView: View {
             // Permission warning
             if !alarmManager.hasAccessibilityPermission {
                 accessibilityWarning
-                Divider().padding(.vertical, 8)
+                Divider()
+                    .padding(.horizontal, Theme.Spacing.sm)
+                    .padding(.vertical, Theme.Spacing.sm)
             }
 
             // State section
             stateSection
 
-            Divider().padding(.vertical, 10)
+            Divider()
+                .padding(.horizontal, Theme.Spacing.sm)
+                .padding(.vertical, Theme.Spacing.md)
 
             // Trusted device section
             if let device = alarmManager.bluetoothManager.trustedDevice {
                 deviceSection(device)
-                Divider().padding(.vertical, 10)
+                Divider()
+                    .padding(.horizontal, Theme.Spacing.sm)
+                    .padding(.vertical, Theme.Spacing.md)
             }
 
             // Actions
             actionsSection
         }
-        .padding(14)
+        .padding(Theme.Spacing.lg)
         .frame(width: 240)
+        .background {
+            GlassBackground(material: .menu, cornerRadius: Theme.CornerRadius.md + 2)
+                .dropdownShadow()
+        }
     }
 
     // MARK: - Sections
 
     @ViewBuilder
     private var accessibilityWarning: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Theme.Spacing.md) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.StateColor.triggered)
             Text("Accessibility Required")
                 .font(.subheadline.weight(.medium))
         }
@@ -82,9 +62,8 @@ struct MenuBarView: View {
             Text("Grant Permission...")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.small)
-        .padding(.top, 4)
+        .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.StateColor.triggered))
+        .padding(.top, Theme.Spacing.xs)
     }
 
     @ViewBuilder
@@ -103,14 +82,12 @@ struct MenuBarView: View {
 
     private func deviceSection(_ device: TrustedDevice) -> some View {
         let isNearby = alarmManager.bluetoothManager.isDeviceNearby
-        return HStack(spacing: 10) {
+        return HStack(spacing: Theme.Spacing.md) {
             ZStack {
-                Circle()
-                    .fill(isNearby ? Color.green.opacity(0.15) : Color.secondary.opacity(0.1))
-                    .frame(width: 32, height: 32)
+                GlassIconCircle(size: 32, material: .selection)
                 Image(systemName: device.icon)
                     .font(.system(size: 14))
-                    .foregroundStyle(isNearby ? .green : .secondary)
+                    .foregroundStyle(isNearby ? Theme.StateColor.armed : .secondary)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -118,45 +95,51 @@ struct MenuBarView: View {
                     .font(.subheadline.weight(.medium))
                 Text(isNearby ? "Nearby" : "Not detected")
                     .font(.caption)
-                    .foregroundStyle(isNearby ? .green : .secondary)
+                    .foregroundStyle(isNearby ? Theme.StateColor.armed : .secondary)
             }
 
             Spacer()
 
             if isNearby {
                 Circle()
-                    .fill(.green)
+                    .fill(Theme.StateColor.armed)
                     .frame(width: 8, height: 8)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(Theme.StateColor.armed.opacity(0.3), lineWidth: 1)
+                    )
             }
         }
     }
 
     private var actionsSection: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: Theme.Spacing.xs) {
             Button {
                 SettingsWindowController.shared.show(alarmManager: alarmManager)
             } label: {
                 HStack {
                     Image(systemName: "gearshape")
+                        .foregroundStyle(.secondary)
                     Text("Settings")
                     Spacer()
                     Text("⌘,")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
             }
-            .buttonStyle(MenuItemButtonStyle())
+            .buttonStyle(GlassMenuRowButtonStyle())
 
             Button {
                 UpdateManager.shared.checkForUpdates()
             } label: {
                 HStack {
                     Image(systemName: "square.and.arrow.down")
+                        .foregroundStyle(.secondary)
                     Text("Check for Updates")
                     Spacer()
                 }
             }
-            .buttonStyle(MenuItemButtonStyle())
+            .buttonStyle(GlassMenuRowButtonStyle())
             .disabled(!UpdateManager.shared.canCheckForUpdates)
 
             Button {
@@ -164,14 +147,15 @@ struct MenuBarView: View {
             } label: {
                 HStack {
                     Image(systemName: "power")
+                        .foregroundStyle(.secondary)
                     Text("Quit")
                     Spacer()
                     Text("⌘Q")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
             }
-            .buttonStyle(MenuItemButtonStyle())
+            .buttonStyle(GlassMenuRowButtonStyle())
         }
     }
 
@@ -181,30 +165,33 @@ struct MenuBarView: View {
         Button {
             alarmManager.arm()
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: "shield.fill")
                 Text("Arm MacGuard")
                     .font(.subheadline.weight(.semibold))
             }
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
+        .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
     }
 
     private var armedView: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.title2)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Theme.StateColor.armed)
                 Text("Protected")
                     .font(.headline)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Theme.StateColor.armed)
                 Spacer()
                 Circle()
-                    .fill(.green)
+                    .fill(Theme.StateColor.armed)
                     .frame(width: 10, height: 10)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(Theme.StateColor.armed.opacity(0.3), lineWidth: 1)
+                    )
             }
 
             Button {
@@ -216,21 +203,20 @@ struct MenuBarView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
+            .buttonStyle(GlassSecondaryButtonStyle())
         }
     }
 
     private var triggeredView: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: "exclamationmark.shield.fill")
                     .font(.title2)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.StateColor.triggered)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Intrusion Detected")
                         .font(.headline)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.StateColor.triggered)
                     Text("\(alarmManager.countdownSeconds)s until alarm")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -247,21 +233,19 @@ struct MenuBarView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.orange)
-            .controlSize(.regular)
+            .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.StateColor.triggered))
         }
     }
 
     private var alarmingView: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: "bell.badge.waveform.fill")
                     .font(.title2)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Theme.StateColor.alarming)
                 Text("ALARM ACTIVE")
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Theme.StateColor.alarming)
                 Spacer()
             }
 
@@ -274,12 +258,9 @@ struct MenuBarView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .controlSize(.regular)
+            .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.StateColor.alarming))
         }
     }
-
 }
 
 #Preview {
