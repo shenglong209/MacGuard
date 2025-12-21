@@ -112,6 +112,13 @@ class BluetoothProximityManager: NSObject, ObservableObject {
 
         guard !isScanning else { return }
 
+        // Reset lastRSSI to ensure first reading triggers state evaluation
+        if var device = trustedDevice {
+            device.lastRSSI = nil
+            trustedDevice = device
+        }
+        isDeviceNearby = false
+
         // Scan with duplicates to get continuous RSSI updates
         centralManager.scanForPeripherals(
             withServices: nil,
@@ -164,10 +171,13 @@ class BluetoothProximityManager: NSObject, ObservableObject {
         let wasNearby = (previousRSSI ?? -100) > rssiAwayThreshold
         let isNearby = rssi > rssiPresentThreshold
 
-        if !wasNearby && isNearby {
-            isDeviceNearby = true
-            print("[Bluetooth] Trusted device nearby (RSSI: \(rssi))")
-            delegate?.trustedDeviceNearby(device)
+        // Transition to nearby: either clean transition OR current state is false but RSSI shows nearby
+        if (!wasNearby && isNearby) || (!isDeviceNearby && isNearby) {
+            if !isDeviceNearby {
+                isDeviceNearby = true
+                print("[Bluetooth] Trusted device nearby (RSSI: \(rssi))")
+                delegate?.trustedDeviceNearby(device)
+            }
         } else if wasNearby && rssi < rssiAwayThreshold {
             isDeviceNearby = false
             print("[Bluetooth] Trusted device away (RSSI: \(rssi))")
