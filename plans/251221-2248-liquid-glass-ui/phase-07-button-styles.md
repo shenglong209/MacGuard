@@ -1,6 +1,27 @@
-// GlassButtonStyles.swift
-// MacGuard - Liquid Glass UI Theme
-// Created: 2025-12-21
+# Phase 7: Glass Button Styles
+
+**Goal:** Create reusable button styles with liquid glass effects.
+
+---
+
+## 7.1 Button Style Variants
+
+| Style | Use Case | Material | Shape |
+|-------|----------|----------|-------|
+| `GlassPrimaryButtonStyle` | Main actions (Arm, Verify) | `.hudWindow` | Capsule |
+| `GlassSecondaryButtonStyle` | Secondary actions (Cancel, Grant) | `.hudWindow` | Rounded rect |
+| `GlassMenuRowButtonStyle` | Menu items | `.selection` on hover | Row |
+| `GlassPillButtonStyle` | Small actions (version badge) | `.hudWindow` | Capsule (compact) |
+| `GlassIconButtonStyle` | Icon-only buttons | `.selection` | Circle |
+
+---
+
+## 7.2 Implementation
+
+### GlassButtonStyles.swift
+
+```swift
+// Theme/GlassButtonStyles.swift
 
 import SwiftUI
 
@@ -28,9 +49,9 @@ struct GlassPrimaryButtonStyle: ButtonStyle {
                     .clipShape(Capsule())
             }
             .glassCapsuleBorder(prominent: true)
-            .scaleEffect(configuration.isPressed ? Theme.Animation.buttonPressScale : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .opacity(isEnabled ? 1.0 : 0.5)
-            .animation(.easeInOut(duration: Theme.Animation.buttonPressDuration), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -58,25 +79,17 @@ struct GlassSecondaryButtonStyle: ButtonStyle {
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             }
             .glassBorder(cornerRadius: cornerRadius)
-            .scaleEffect(configuration.isPressed ? Theme.Animation.buttonPressScaleSubtle : 1.0)
-            .animation(.easeInOut(duration: Theme.Animation.buttonPressDuration), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
 // MARK: - Menu Row Button Style
 
 struct GlassMenuRowButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        GlassMenuRowButtonContent(configuration: configuration)
-    }
-}
-
-/// Wrapper view to properly handle @State for hover tracking
-private struct GlassMenuRowButtonContent: View {
-    let configuration: ButtonStyleConfiguration
     @State private var isHovered = false
 
-    var body: some View {
+    func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.sm)
@@ -95,7 +108,6 @@ private struct GlassMenuRowButtonContent: View {
                         .clipShape(RoundedRectangle(cornerRadius: Theme.CornerRadius.sm))
                 }
             }
-            .contentShape(Rectangle())
             .onHover { isHovered = $0 }
     }
 }
@@ -122,8 +134,8 @@ struct GlassPillButtonStyle: ButtonStyle {
                     .clipShape(Capsule())
             }
             .glassCapsuleBorder()
-            .scaleEffect(configuration.isPressed ? Theme.Animation.pillPressScale : 1.0)
-            .animation(.easeInOut(duration: Theme.Animation.buttonPressDuration), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -164,8 +176,8 @@ struct GlassIconButtonStyle: ButtonStyle {
                         lineWidth: 0.5
                     )
             )
-            .scaleEffect(configuration.isPressed ? Theme.Animation.iconPressScale : 1.0)
-            .animation(.easeInOut(duration: Theme.Animation.buttonPressDuration), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -210,47 +222,98 @@ struct GlassStateButtonStyle: ButtonStyle {
                 }
             }
             .glassCapsuleBorder(prominent: true)
-            .scaleEffect(configuration.isPressed ? Theme.Animation.buttonPressScale : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .shadow(color: stateColor.opacity(0.4), radius: 8, y: 4)
-            .animation(.easeInOut(duration: Theme.Animation.buttonPressDuration), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
+```
 
-// MARK: - Bordered Prominent Glass Button (replacement for system .borderedProminent)
+---
 
-struct GlassBorderedProminentButtonStyle: ButtonStyle {
-    var tint: Color = .accentColor
-    @Environment(\.isEnabled) private var isEnabled
+## 7.3 Usage Examples
 
+```swift
+// Primary action
+Button("Arm MacGuard") { arm() }
+    .buttonStyle(GlassPrimaryButtonStyle())
+
+// Secondary action
+Button("Cancel") { dismiss() }
+    .buttonStyle(GlassSecondaryButtonStyle())
+
+// Menu row
+Button {
+    openSettings()
+} label: {
+    HStack {
+        Image(systemName: "gear")
+        Text("Settings...")
+        Spacer()
+        Text("⌘,").foregroundStyle(.secondary)
+    }
+}
+.buttonStyle(GlassMenuRowButtonStyle())
+
+// Compact pill
+Button("v1.3.15") { }
+    .buttonStyle(GlassPillButtonStyle())
+
+// Icon button
+Button { toggleMute() } label: {
+    Image(systemName: "speaker.wave.2")
+}
+.buttonStyle(GlassIconButtonStyle(size: 36))
+
+// State-aware button
+Button("Disarm") { disarm() }
+    .buttonStyle(GlassStateButtonStyle(state: .armed))
+```
+
+---
+
+## 7.4 Toggle Style (Bonus)
+
+```swift
+// MARK: - Glass Toggle Style
+
+struct GlassToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(.white)
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.vertical, Theme.Spacing.sm)
-            .background {
-                ZStack {
-                    Capsule()
-                        .fill(tint)
-
-                    // Glass overlay
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .white.opacity(0.20), location: 0.0),
-                                    .init(color: .clear, location: 0.5),
-                                    .init(color: .black.opacity(0.10), location: 1.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                }
-            }
-            .glassCapsuleBorder(prominent: true)
-            .scaleEffect(configuration.isPressed ? Theme.Animation.buttonPressScaleSubtle : 1.0)
-            .opacity(isEnabled ? 1.0 : 0.5)
-            .animation(.easeInOut(duration: Theme.Animation.buttonPressDuration), value: configuration.isPressed)
+        HStack {
+            configuration.label
+            Spacer()
+            Toggle("", isOn: configuration.$isOn)
+                .toggleStyle(.switch)
+                .tint(Theme.StateColor.armed)
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .background {
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.md)
+                .fill(.clear)
+                .background(
+                    VisualEffectView(
+                        material: .headerView,
+                        blendingMode: .withinWindow
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: Theme.CornerRadius.md))
+        }
+        .glassBorder(cornerRadius: Theme.CornerRadius.md)
     }
 }
+```
+
+---
+
+## Verification
+
+- [ ] Primary button has capsule shape with prominent border
+- [ ] Secondary button has rounded rect shape
+- [ ] Menu row button shows hover state
+- [ ] Pill button is compact size
+- [ ] Icon button is circular
+- [ ] State button shows appropriate color
+- [ ] All buttons have press scale animation
+- [ ] All buttons have glass material background
+- [ ] Borders visible with gradient highlight
