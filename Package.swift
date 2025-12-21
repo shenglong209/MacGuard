@@ -41,7 +41,8 @@ let package = Package(
                 "Managers",
                 "Views",
                 "Models",
-                "Utilities"
+                "Utilities",
+                "Theme"
             ],
             resources: [
                 .copy("Resources")
