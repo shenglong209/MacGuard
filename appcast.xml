@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 1.3.18</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.3.18</link>
+      <sparkle:version>1318</sparkle:version>
+      <sparkle:shortVersionString>1.3.18</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 1.3.18</h3>
+        <ul><li>Fixed auto-disarm not triggering when device returns during alarm</li><li>Root cause: RSSI fluctuations in hysteresis dead zone prevented state transition</li><li>Reset `lastRSSI` on scan start to ensure first reading triggers state evaluation</li><li>Exclude `lastRSSI`/`lastSeen` from persistence (runtime state only)</li><li>Improved hysteresis logic: trigger nearby callback when current state is false but RSSI shows nearby, not just on clean RSSI transitions</li><li>[x] Build succeeds</li><li>[x] Manual test: arm → trigger → bring device nearby → auto-disarm ✓</li></ul>
+      ]]></description>
+      <pubDate>Sun, 21 Dec 2025 15:04:28 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v1.3.18/MacGuard-1.3.18.dmg"
+        sparkle:edSignature="8HazzchFGqyZ5wxDJggnNxvaIzp/QAUS6uG+ydTJQcEeSK0NHV00UWmAfjxyW1RNOT/CTkdCn+vz5EfgWjafAw=="
+        length="6749837"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 1.3.17</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.3.17</link>
       <sparkle:version>1317</sparkle:version>
