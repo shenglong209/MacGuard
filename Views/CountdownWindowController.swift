@@ -43,7 +43,6 @@ class CountdownWindowController {
     /// Hide the overlay (does not destroy window)
     func hide() {
         window?.orderOut(nil)
-        NSApp.setActivationPolicy(.accessory)
         print("[Overlay] Countdown overlay hidden")
     }
 
