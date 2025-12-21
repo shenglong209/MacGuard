@@ -13,90 +13,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Modern header with animated top bar
-            VStack(spacing: 0) {
-                // Animated status bar at top
-                Rectangle()
-                    .fill(headerBarGradient)
-                    .frame(height: 3)
-                    .animation(.easeInOut(duration: 0.5), value: alarmManager.state)
-
-                // Header content
-                HStack(spacing: 14) {
-                    // App icon with glow when armed
-                    if let iconImage = loadAppIcon() {
-                        Image(nsImage: iconImage)
-                            .resizable()
-                            .frame(width: 56, height: 56)
-                            .cornerRadius(12)
-                            .shadow(
-                                color: alarmManager.state != .idle ? .green.opacity(0.4) : .black.opacity(0.2),
-                                radius: alarmManager.state != .idle ? 12 : 4,
-                                x: 0, y: 2
-                            )
-                            .animation(.easeInOut(duration: 0.5), value: alarmManager.state)
-                    } else {
-                        Image(systemName: "lock.shield.fill")
-                            .font(.system(size: 40))
-                            .foregroundColor(.blue)
-                    }
-
-                    // Title and subtitle
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 8) {
-                            Text("MacGuard")
-                                .font(.title2.bold())
-                            Text("v\(appVersion)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.primary.opacity(0.06))
-                                .cornerRadius(4)
-                        }
-                        Text("Anti-Theft Protection")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    // Status indicator
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(alarmManager.state == .idle ? Color.gray : Color.green)
-                            .frame(width: 8, height: 8)
-                            .shadow(
-                                color: alarmManager.state != .idle ? .green.opacity(0.6) : .clear,
-                                radius: 4
-                            )
-                        Text(alarmManager.state == .idle ? "Disarmed" : "Protected")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundColor(alarmManager.state == .idle ? .secondary : .green)
-                    }
-                    .animation(.easeInOut(duration: 0.3), value: alarmManager.state)
-
-                    // Quick action button
-                    Button {
-                        if alarmManager.state == .idle {
-                            alarmManager.arm()
-                        } else {
-                            alarmManager.disarm()
-                        }
-                    } label: {
-                        Image(systemName: alarmManager.state == .idle ? "shield" : "shield.fill")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(alarmManager.state == .idle ? .secondary : .green)
-                            .frame(width: 36, height: 36)
-                            .background(Color.primary.opacity(0.06))
-                            .cornerRadius(8)
-                    }
-                    .buttonStyle(.plain)
-                    .help(alarmManager.state == .idle ? "Arm MacGuard" : "Disarm MacGuard")
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 14)
-            }
-            .background(Color(nsColor: .windowBackgroundColor))
+            headerView
 
             Divider()
 
@@ -125,32 +42,7 @@ struct SettingsView: View {
                 // Trusted Device Section
                 Section {
                     if let device = alarmManager.bluetoothManager.trustedDevice {
-                        HStack(spacing: 12) {
-                            Image(systemName: device.icon)
-                                .font(.title2)
-                                .foregroundColor(.blue)
-                                .frame(width: 32)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(device.name)
-                                    .font(.headline)
-                                if let rssi = device.lastRSSI {
-                                    Text("Signal: \(rssi) dBm")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            Spacer()
-                            if alarmManager.bluetoothManager.isDeviceNearby {
-                                Label("Nearby", systemImage: "checkmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
-                            }
-                            Button("Remove") {
-                                alarmManager.bluetoothManager.removeTrustedDevice()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
+                        trustedDeviceRow(device)
 
                         Picker("Detection Distance", selection: $settings.proximityDistance) {
                             ForEach(ProximityDistance.allCases) { distance in
@@ -171,16 +63,7 @@ struct SettingsView: View {
                             .pickerStyle(.menu)
                         }
                     } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("No trusted device configured")
-                                .foregroundColor(.secondary)
-                            Button {
-                                DeviceScannerWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
-                            } label: {
-                                Label("Scan for Devices", systemImage: "wave.3.right")
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
+                        noDeviceConfigured
                     }
                 } header: {
                     Label("Trusted Device", systemImage: "iphone")
@@ -188,130 +71,15 @@ struct SettingsView: View {
 
                 // Security Section
                 Section {
-                    HStack(spacing: 12) {
-                        Image(systemName: "number.square.fill")
-                            .font(.title2)
-                            .foregroundColor(.orange)
-                            .frame(width: 32)
-                        Text("Backup PIN")
-                        Spacer()
-                        if alarmManager.authManager.hasPIN {
-                            Label("Configured", systemImage: "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                            Button("Change") {
-                                PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
-                            }
-                            .controlSize(.small)
-                        } else {
-                            Button("Set PIN") {
-                                PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        }
-                    }
-
-                    HStack(spacing: 12) {
-                        Image(systemName: "touchid")
-                            .font(.title2)
-                            .foregroundColor(.pink)
-                            .frame(width: 32)
-                        Text("Touch ID")
-                        Spacer()
-                        if alarmManager.authManager.hasBiometrics {
-                            Label("Available", systemImage: "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                        } else {
-                            Text("Not available")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
+                    securityPINRow
+                    securityTouchIDRow
                 } header: {
                     Label("Security", systemImage: "lock.fill")
                 }
 
                 // Behavior Section
                 Section {
-                    Toggle("Lock screen when armed", isOn: $settings.autoLockOnArm)
-
-                    Picker("Countdown duration", selection: $settings.countdownDuration) {
-                        Text("Immediately").tag(0)
-                        Text("3 seconds").tag(3)
-                        Text("5 seconds").tag(5)
-                        Text("10 seconds").tag(10)
-                        Text("15 seconds").tag(15)
-                        Text("30 seconds").tag(30)
-                    }
-
-                    // Lid Close Protection with warning
-                    VStack(alignment: .leading, spacing: 6) {
-                        Toggle("Lid close alarm (requires admin)", isOn: $settings.lidCloseProtection)
-
-                        if settings.lidCloseProtection {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Mac won't sleep when lid closes while armed")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text("Requires password prompt when arming")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .padding(.leading, 4)
-                        }
-                    }
-
-                    Picker("Alarm Sound", selection: Binding(
-                        get: { settings.alarmSound },
-                        set: { newValue in
-                            if newValue == .custom {
-                                _ = settings.selectCustomSound()
-                            } else {
-                                settings.alarmSound = newValue
-                            }
-                        }
-                    )) {
-                        ForEach(AlarmSound.allCases.filter { $0.isAvailable }) { sound in
-                            Text(sound.rawValue).tag(sound)
-                        }
-                    }
-
-                    // Show custom file info when custom is selected
-                    if settings.alarmSound == .custom {
-                        HStack {
-                            Image(systemName: "music.note")
-                                .foregroundColor(.secondary)
-                            Text(settings.customSoundName)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            Button("Change") {
-                                _ = settings.selectCustomSound()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    }
-
-                    HStack {
-                        Text("Volume")
-                        Slider(value: $settings.alarmVolume, in: 0.5...1.0)
-                        Button {
-                            settings.previewSound()
-                        } label: {
-                            Image(systemName: "speaker.wave.2")
-                        }
-                        .buttonStyle(.borderless)
-                    }
+                    behaviorSection
                 } header: {
                     Label("Behavior", systemImage: "gearshape.2")
                 }
@@ -325,24 +93,7 @@ struct SettingsView: View {
 
                 // About Section
                 Section {
-                    LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown")
-                    LabeledContent("macOS", value: macOSVersion)
-
-                    // Check for Updates button
-                    HStack {
-                        Text("Updates")
-                        Spacer()
-                        CheckForUpdatesButton()
-                    }
-
-                    Link(destination: URL(string: "https://github.com/shenglong209/MacGuard")!) {
-                        HStack {
-                            Text("GitHub Repository")
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .foregroundColor(.secondary)
-                        }
-                    }
+                    aboutSection
                 } header: {
                     Label("About", systemImage: "info.circle")
                 }
@@ -350,6 +101,318 @@ struct SettingsView: View {
             .formStyle(.grouped)
         }
         .frame(width: 420, height: 680)
+    }
+
+    // MARK: - Header View
+
+    private var headerView: some View {
+        VStack(spacing: 0) {
+            // Animated status bar at top
+            Rectangle()
+                .fill(headerBarGradient)
+                .frame(height: 3)
+                .animation(.easeInOut(duration: 0.5), value: alarmManager.state)
+
+            // Header content
+            HStack(spacing: Theme.Spacing.lg) {
+                // App icon with glow when armed
+                if let iconImage = loadAppIcon() {
+                    Image(nsImage: iconImage)
+                        .resizable()
+                        .frame(width: 56, height: 56)
+                        .cornerRadius(Theme.CornerRadius.lg)
+                        .shadow(
+                            color: alarmManager.state != .idle ? Theme.StateColor.armed.opacity(0.4) : .black.opacity(0.2),
+                            radius: alarmManager.state != .idle ? 12 : 4,
+                            x: 0, y: 2
+                        )
+                        .animation(.easeInOut(duration: 0.5), value: alarmManager.state)
+                } else {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(Theme.Accent.primary)
+                }
+
+                // Title and subtitle
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Text("MacGuard")
+                            .font(.title2.bold())
+
+                        // Version badge with glass pill
+                        Text("v\(appVersion)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, Theme.Spacing.sm)
+                            .padding(.vertical, 2)
+                            .background {
+                                Capsule()
+                                    .fill(.clear)
+                                    .background(
+                                        VisualEffectView(
+                                            material: .hudWindow,
+                                            blendingMode: .withinWindow
+                                        )
+                                    )
+                                    .clipShape(Capsule())
+                            }
+                            .glassCapsuleBorder()
+                    }
+                    Text("Anti-Theft Protection")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                // Status indicator
+                HStack(spacing: Theme.Spacing.sm) {
+                    Circle()
+                        .fill(alarmManager.state == .idle ? Theme.StateColor.idle : Theme.StateColor.armed)
+                        .frame(width: 8, height: 8)
+                        .overlay(
+                            Circle()
+                                .strokeBorder(
+                                    (alarmManager.state != .idle ? Theme.StateColor.armed : Theme.StateColor.idle).opacity(0.3),
+                                    lineWidth: 1
+                                )
+                        )
+                        .shadow(
+                            color: alarmManager.state != .idle ? Theme.StateColor.armed.opacity(0.6) : .clear,
+                            radius: 4
+                        )
+                    Text(alarmManager.state == .idle ? "Disarmed" : "Protected")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(alarmManager.state == .idle ? .secondary : Theme.StateColor.armed)
+                }
+                .animation(.easeInOut(duration: 0.3), value: alarmManager.state)
+
+                // Quick action button with glass
+                Button {
+                    if alarmManager.state == .idle {
+                        alarmManager.arm()
+                    } else {
+                        alarmManager.disarm()
+                    }
+                } label: {
+                    Image(systemName: alarmManager.state == .idle ? "shield" : "shield.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(alarmManager.state == .idle ? .secondary : Theme.StateColor.armed)
+                }
+                .buttonStyle(GlassIconButtonStyle(size: 36))
+                .help(alarmManager.state == .idle ? "Arm MacGuard" : "Disarm MacGuard")
+            }
+            .padding(.horizontal, Theme.Spacing.xl)
+            .padding(.vertical, Theme.Spacing.lg)
+        }
+        .background {
+            GlassBackground(material: .headerView, cornerRadius: 0, showBorder: false)
+        }
+    }
+
+    // MARK: - Trusted Device Row
+
+    private func trustedDeviceRow(_ device: TrustedDevice) -> some View {
+        HStack(spacing: Theme.Spacing.md) {
+            ZStack {
+                GlassIconCircle(size: 32, material: .selection)
+                Image(systemName: device.icon)
+                    .font(.title2)
+                    .foregroundColor(Theme.Accent.primary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.name)
+                    .font(.headline)
+                if let rssi = device.lastRSSI {
+                    Text("Signal: \(rssi) dBm")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Spacer()
+            if alarmManager.bluetoothManager.isDeviceNearby {
+                Label("Nearby", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundColor(Theme.StateColor.armed)
+            }
+            Button("Remove") {
+                alarmManager.bluetoothManager.removeTrustedDevice()
+            }
+            .buttonStyle(GlassSecondaryButtonStyle())
+        }
+    }
+
+    // MARK: - No Device Configured
+
+    private var noDeviceConfigured: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text("No trusted device configured")
+                .foregroundColor(.secondary)
+            Button {
+                DeviceScannerWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
+            } label: {
+                Label("Scan for Devices", systemImage: "wave.3.right")
+            }
+            .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
+        }
+    }
+
+    // MARK: - Security Rows
+
+    private var securityPINRow: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            ZStack {
+                GlassIconCircle(size: 32, material: .selection)
+                Image(systemName: "number.square.fill")
+                    .font(.title2)
+                    .foregroundColor(Theme.StateColor.triggered)
+            }
+            Text("Backup PIN")
+            Spacer()
+            if alarmManager.authManager.hasPIN {
+                Label("Configured", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundColor(Theme.StateColor.armed)
+                Button("Change") {
+                    PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
+                }
+                .buttonStyle(GlassSecondaryButtonStyle())
+            } else {
+                Button("Set PIN") {
+                    PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
+                }
+                .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
+            }
+        }
+    }
+
+    private var securityTouchIDRow: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            ZStack {
+                GlassIconCircle(size: 32, material: .selection)
+                Image(systemName: "touchid")
+                    .font(.title2)
+                    .foregroundColor(.pink)
+            }
+            Text("Touch ID")
+            Spacer()
+            if alarmManager.authManager.hasBiometrics {
+                Label("Available", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundColor(Theme.StateColor.armed)
+            } else {
+                Text("Not available")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Behavior Section
+
+    @ViewBuilder
+    private var behaviorSection: some View {
+        Toggle("Lock screen when armed", isOn: $settings.autoLockOnArm)
+
+        Picker("Countdown duration", selection: $settings.countdownDuration) {
+            Text("Immediately").tag(0)
+            Text("3 seconds").tag(3)
+            Text("5 seconds").tag(5)
+            Text("10 seconds").tag(10)
+            Text("15 seconds").tag(15)
+            Text("30 seconds").tag(30)
+        }
+
+        // Lid Close Protection with warning
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Toggle("Lid close alarm (requires admin)", isOn: $settings.lidCloseProtection)
+
+            if settings.lidCloseProtection {
+                HStack(spacing: Theme.Spacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(Theme.StateColor.triggered)
+                        .font(.caption)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mac won't sleep when lid closes while armed")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("Requires password prompt when arming")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.leading, Theme.Spacing.xs)
+            }
+        }
+
+        Picker("Alarm Sound", selection: Binding(
+            get: { settings.alarmSound },
+            set: { newValue in
+                if newValue == .custom {
+                    _ = settings.selectCustomSound()
+                } else {
+                    settings.alarmSound = newValue
+                }
+            }
+        )) {
+            ForEach(AlarmSound.allCases.filter { $0.isAvailable }) { sound in
+                Text(sound.rawValue).tag(sound)
+            }
+        }
+
+        // Show custom file info when custom is selected
+        if settings.alarmSound == .custom {
+            HStack {
+                Image(systemName: "music.note")
+                    .foregroundColor(.secondary)
+                Text(settings.customSoundName)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Button("Change") {
+                    _ = settings.selectCustomSound()
+                }
+                .buttonStyle(GlassSecondaryButtonStyle())
+            }
+        }
+
+        HStack {
+            Text("Volume")
+            Slider(value: $settings.alarmVolume, in: 0.5...1.0)
+            Button {
+                settings.previewSound()
+            } label: {
+                Image(systemName: "speaker.wave.2")
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    // MARK: - About Section
+
+    @ViewBuilder
+    private var aboutSection: some View {
+        LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown")
+        LabeledContent("macOS", value: macOSVersion)
+
+        // Check for Updates button
+        HStack {
+            Text("Updates")
+            Spacer()
+            CheckForUpdatesButton()
+        }
+
+        Link(destination: URL(string: "https://github.com/shenglong209/MacGuard")!) {
+            HStack {
+                Text("GitHub Repository")
+                Spacer()
+                Image(systemName: "arrow.up.right.square")
+                    .foregroundColor(.secondary)
+            }
+        }
     }
 
     // MARK: - Computed Properties
@@ -366,7 +429,7 @@ struct SettingsView: View {
     private var headerBarGradient: LinearGradient {
         if alarmManager.state != .idle {
             return LinearGradient(
-                colors: [.green],
+                colors: [Theme.StateColor.armed],
                 startPoint: .leading,
                 endPoint: .trailing
             )
@@ -395,11 +458,13 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func permissionRow(icon: String, title: String, subtitle: String, granted: Bool, action: @escaping () -> Void) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(granted ? .green : .blue)
-                .frame(width: 32)
+        HStack(spacing: Theme.Spacing.md) {
+            ZStack {
+                GlassIconCircle(size: 32, material: .selection)
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundColor(granted ? Theme.StateColor.armed : Theme.Accent.primary)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                 Text(subtitle)
@@ -410,13 +475,12 @@ struct SettingsView: View {
             if granted {
                 Label("Granted", systemImage: "checkmark.circle.fill")
                     .font(.caption)
-                    .foregroundColor(.green)
+                    .foregroundColor(Theme.StateColor.armed)
             } else {
                 Button("Grant") {
                     action()
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+                .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
             }
         }
     }
@@ -531,7 +595,7 @@ struct PINSetupContainerView: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Theme.Spacing.lg) {
             Text("Set Backup PIN")
                 .font(.headline)
 
@@ -544,7 +608,7 @@ struct PINSetupContainerView: View {
 
             if viewModel.showError {
                 Text(viewModel.errorMessage)
-                    .foregroundColor(.red)
+                    .foregroundColor(Theme.StateColor.alarming)
                     .font(.caption)
             }
 
@@ -552,14 +616,16 @@ struct PINSetupContainerView: View {
                 Button("Cancel") {
                     onDismiss()
                 }
+                .buttonStyle(GlassSecondaryButtonStyle())
+
                 Button("Save") {
                     savePIN()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
                 .disabled(viewModel.pin.count < 4)
             }
         }
-        .padding(20)
+        .padding(Theme.Spacing.xl)
         .frame(width: 280)
     }
 
