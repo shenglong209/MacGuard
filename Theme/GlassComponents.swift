@@ -12,6 +12,7 @@ struct GlassBackground: View {
     var material: NSVisualEffectView.Material = .menu
     var cornerRadius: CGFloat = Theme.CornerRadius.lg
     var showBorder: Bool = true
+    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
 
     var body: some View {
         ZStack {
@@ -21,7 +22,7 @@ struct GlassBackground: View {
                 .background(
                     VisualEffectView(
                         material: material,
-                        blendingMode: .withinWindow,
+                        blendingMode: blendingMode,
                         isEmphasized: true
                     )
                 )

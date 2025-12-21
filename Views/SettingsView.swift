@@ -99,8 +99,17 @@ struct SettingsView: View {
                 }
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
         .frame(width: 420, height: 680)
+        .background {
+            VisualEffectView(
+                material: .sidebar,
+                blendingMode: .behindWindow,
+                isEmphasized: true
+            )
+            .ignoresSafeArea()
+        }
     }
 
     // MARK: - Header View
