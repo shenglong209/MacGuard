@@ -51,6 +51,10 @@ class DeviceScannerWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
 
+        // Enable transparency for glass effects
+        newWindow.isOpaque = false
+        newWindow.backgroundColor = .clear
+
         newWindow.contentViewController = hostingController
         newWindow.title = "Scan for Devices"
         newWindow.isReleasedWhenClosed = false
@@ -244,6 +248,14 @@ struct DeviceScannerContainerView: View {
             }
         }
         .frame(width: 350, height: 400)
+        .background {
+            VisualEffectView(
+                material: .sidebar,
+                blendingMode: .behindWindow,
+                isEmphasized: true
+            )
+            .ignoresSafeArea()
+        }
     }
 
     // MARK: - Empty State

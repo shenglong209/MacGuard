@@ -51,6 +51,10 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
 
+        // Enable transparency for glass effects
+        newWindow.isOpaque = false
+        newWindow.backgroundColor = .clear
+
         newWindow.contentViewController = hostingController
         newWindow.title = "MacGuard Settings"
         newWindow.center()
