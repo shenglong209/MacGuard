@@ -15,7 +15,7 @@ Anti-theft alarm app for macOS. Protects your laptop in public places by trigger
 - **Input Monitoring** - Detects keyboard, mouse, and trackpad activity
 - **Sleep/Power Detection** - Triggers on lid close or power disconnect
 - **Lid Close Alarm** - Instant alarm when lid closes (requires admin, prevents sleep)
-- **Bluetooth Proximity** - Auto-disarm when paired device (iPhone/AirPods) is nearby
+- **Bluetooth Proximity** - Auto-disarm when trusted device nearby; auto-arm when device leaves
 - **Touch ID + PIN** - Secure authentication to disarm
 - **Configurable Alarm** - Choose from 14 system sounds, custom audio files, or bundled "Don't Touch My Mac"
 - **Auto-Lock** - Optional screen lock when armed (configurable)
@@ -83,6 +83,7 @@ To prevent users from needing to re-grant Accessibility permission after each up
    - Shows only devices paired with your Mac
    - Select your iPhone, AirPods, or Apple Watch
    - Device will auto-disarm alarm when nearby
+   - Enable "Auto-arm when device leaves" for automatic protection
 
 3. **Set Backup PIN**
    - Click "Set PIN" in Security section
