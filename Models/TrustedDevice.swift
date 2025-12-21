@@ -21,14 +21,11 @@ struct TrustedDevice: Identifiable, Codable, Hashable {
     // MARK: - Computed Properties
 
     /// Whether device is considered nearby based on RSSI threshold
-    /// -50 dBm ≈ 1m distance (validated setting)
+    /// Uses dynamic threshold from AppSettings to match detection logic
     var isNearby: Bool {
         guard let rssi = lastRSSI else { return false }
-        return rssi > TrustedDevice.rssiThreshold
+        return rssi > AppSettings.shared.proximityDistance.awayThreshold
     }
-
-    /// RSSI threshold for "nearby" detection (-70 dBm ≈ 3-5m)
-    static let rssiThreshold: Int = -60
 
     /// SF Symbol icon based on device name
     var icon: String {
