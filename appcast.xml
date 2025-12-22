@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 1.3.24</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.3.24</link>
+      <sparkle:version>1324</sparkle:version>
+      <sparkle:shortVersionString>1.3.24</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 1.3.24</h3>
+        <ul><li>Add activity log viewer accessible from Settings window</li><li>Log entries categorized: System, Armed, Disarmed, Trigger, Alarm, Bluetooth, Input, Power</li><li>Search and filter functionality with glass theme UI</li><li>Replace print statements with structured logging in AlarmStateManager</li><li>[ ] Open Settings → Activity Log section visible</li><li>[ ] Click "View Log" → Log window opens</li><li>[ ] Arm/disarm → Events logged</li><li>[ ] Search and filter work correctly</li></ul>
+      ]]></description>
+      <pubDate>Mon, 22 Dec 2025 08:20:47 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v1.3.24/MacGuard-1.3.24.dmg"
+        sparkle:edSignature="O4XNzebGyXngj3mbnaBlgGDxV2ndUrSz5QcjzNbWL6y2AcrzKPrKx/jZRt+wRS5e4zg4ClrN7cFq0awlfp9EDw=="
+        length="6832278"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 1.3.23</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.3.23</link>
       <sparkle:version>1323</sparkle:version>
