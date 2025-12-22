@@ -113,6 +113,7 @@ class AlarmStateManager: ObservableObject {
             guard self.inputMonitor.startMonitoring() else {
                 // Permission denied - show warning
                 self.hasAccessibilityPermission = false
+                ActivityLogManager.shared.log(.system, "Failed to arm - accessibility permission denied")
                 return
             }
 
@@ -125,7 +126,7 @@ class AlarmStateManager: ObservableObject {
 
             self.hasAccessibilityPermission = true
             self.state = .armed
-            print("[MacGuard] Armed - monitoring active")
+            ActivityLogManager.shared.log(.armed, "System armed - monitoring active")
         }
     }
 
@@ -176,7 +177,7 @@ class AlarmStateManager: ObservableObject {
         overlayController.hide()
 
         state = .idle
-        print("[MacGuard] Disarmed")
+        ActivityLogManager.shared.log(.disarmed, "System disarmed")
 
         // Restart background scanning for UI display
         bluetoothManager.startScanning()
@@ -210,7 +211,7 @@ class AlarmStateManager: ObservableObject {
 
         // Check if trusted device is nearby - if so, don't trigger
         if bluetoothManager.isTrustedDeviceNearby() {
-            print("[MacGuard] Trusted device nearby - ignoring trigger")
+            ActivityLogManager.shared.log(.bluetooth, "Trusted device nearby - ignoring trigger")
             return
         }
 
@@ -224,11 +225,11 @@ class AlarmStateManager: ObservableObject {
         if duration == 0 {
             audioManager.playAlarm()
             state = .alarming
-            print("[MacGuard] Triggered - immediate alarm (no countdown)")
+            ActivityLogManager.shared.log(.alarm, "Immediate alarm triggered (no countdown)")
         } else {
             state = .triggered
             startCountdown()
-            print("[MacGuard] Triggered - countdown started (\(duration)s)")
+            ActivityLogManager.shared.log(.trigger, "Countdown started (\(duration)s)")
         }
     }
 
@@ -238,7 +239,7 @@ class AlarmStateManager: ObservableObject {
 
         // Even for immediate triggers, check Bluetooth proximity
         if bluetoothManager.isTrustedDeviceNearby() {
-            print("[MacGuard] Trusted device nearby - ignoring immediate trigger")
+            ActivityLogManager.shared.log(.bluetooth, "Trusted device nearby - ignoring immediate trigger")
             return
         }
 
@@ -250,7 +251,7 @@ class AlarmStateManager: ObservableObject {
         audioManager.playAlarm()
 
         state = .alarming
-        print("[MacGuard] ALARM ACTIVE")
+        ActivityLogManager.shared.log(.alarm, "ALARM ACTIVE")
     }
 
     // MARK: - Private Methods
@@ -268,7 +269,7 @@ class AlarmStateManager: ObservableObject {
                     // Start alarm
                     strongSelf.audioManager.playAlarm()
                     strongSelf.state = .alarming
-                    print("[MacGuard] Countdown expired - ALARM ACTIVE")
+                    ActivityLogManager.shared.log(.alarm, "Countdown expired - ALARM ACTIVE")
                 }
             }
         }
@@ -279,13 +280,13 @@ class AlarmStateManager: ObservableObject {
     private func startAutoArmTimer() {
         autoArmTimer?.invalidate()
         let delay = AppSettings.shared.autoArmGracePeriod
-        print("[MacGuard] Starting auto-arm timer (\(delay)s)")
+        ActivityLogManager.shared.log(.system, "Auto-arm timer started (\(delay)s grace period)")
 
         autoArmTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delay), repeats: false) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 guard self.state == .idle else { return }
-                print("[MacGuard] Auto-arming - trusted device still away")
+                ActivityLogManager.shared.log(.armed, "Auto-arming - trusted device still away")
                 self.arm()
             }
         }
@@ -293,7 +294,7 @@ class AlarmStateManager: ObservableObject {
 
     private func cancelAutoArmTimer() {
         if autoArmTimer != nil {
-            print("[MacGuard] Cancelled auto-arm timer - device returned")
+            ActivityLogManager.shared.log(.system, "Auto-arm timer cancelled - device returned")
         }
         autoArmTimer?.invalidate()
         autoArmTimer = nil
@@ -307,7 +308,7 @@ extension AlarmStateManager: InputMonitorDelegate {
         Task { @MainActor in
             guard self.state == .armed else { return }
 
-            // Log event type for debugging
+            // Log event type
             let eventName: String
             switch eventType {
             case .keyDown: eventName = "keyboard"
@@ -316,7 +317,7 @@ extension AlarmStateManager: InputMonitorDelegate {
             case .scrollWheel: eventName = "scroll/touchpad"
             default: eventName = "unknown"
             }
-            print("[MacGuard] Input detected: \(eventName)")
+            ActivityLogManager.shared.log(.input, "Input detected: \(eventName)")
 
             self.trigger()
         }
@@ -330,7 +331,7 @@ extension AlarmStateManager: SleepMonitorDelegate {
         Task { @MainActor in
             guard self.state == .armed else { return }
             // Lid close = immediate alarm (no countdown per validation)
-            print("[MacGuard] Lid close detected - immediate alarm")
+            ActivityLogManager.shared.log(.system, "Lid close detected - immediate alarm")
             self.triggerImmediate()
         }
     }
@@ -339,10 +340,10 @@ extension AlarmStateManager: SleepMonitorDelegate {
         Task { @MainActor in
             // Auto-disarm if trusted device is nearby on wake
             if self.bluetoothManager.isTrustedDeviceNearby() {
-                print("[MacGuard] System woke - trusted device nearby, auto-disarming")
+                ActivityLogManager.shared.log(.bluetooth, "System woke - trusted device nearby, auto-disarming")
                 self.disarm()
             } else {
-                print("[MacGuard] System woke from sleep")
+                ActivityLogManager.shared.log(.system, "System woke from sleep")
             }
         }
     }
@@ -355,13 +356,15 @@ extension AlarmStateManager: PowerMonitorDelegate {
         Task { @MainActor in
             guard self.state == .armed else { return }
             // Power disconnect = start countdown
-            print("[MacGuard] Power cable disconnected - starting countdown")
+            ActivityLogManager.shared.log(.power, "Power cable disconnected - starting countdown")
             self.trigger()
         }
     }
 
     nonisolated func powerCableConnected() {
-        // No action needed
+        Task { @MainActor in
+            ActivityLogManager.shared.log(.power, "Power cable connected")
+        }
     }
 }
 
@@ -375,7 +378,7 @@ extension AlarmStateManager: BluetoothProximityDelegate {
 
             // Auto-disarm if armed, triggered, or alarming
             if self.state == .armed || self.state == .triggered || self.state == .alarming {
-                print("[MacGuard] Trusted device detected - auto-disarming")
+                ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(device.name)' detected - auto-disarming")
                 self.disarm()
             }
         }
@@ -383,7 +386,7 @@ extension AlarmStateManager: BluetoothProximityDelegate {
 
     nonisolated func trustedDeviceAway(_ device: TrustedDevice) {
         Task { @MainActor in
-            print("[MacGuard] Trusted device left proximity")
+            ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(device.name)' left proximity")
 
             guard AppSettings.shared.autoArmOnDeviceLeave,
                   self.state == .idle else { return }
@@ -393,8 +396,12 @@ extension AlarmStateManager: BluetoothProximityDelegate {
     }
 
     nonisolated func bluetoothStateChanged(_ state: CBManagerState) {
-        if state == .poweredOff {
-            print("[MacGuard] Bluetooth turned off")
+        Task { @MainActor in
+            if state == .poweredOff {
+                ActivityLogManager.shared.log(.bluetooth, "Bluetooth turned off")
+            } else if state == .poweredOn {
+                ActivityLogManager.shared.log(.bluetooth, "Bluetooth turned on")
+            }
         }
     }
 }
