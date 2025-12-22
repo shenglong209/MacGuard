@@ -91,6 +91,13 @@ struct SettingsView: View {
                     Label("Startup", systemImage: "power")
                 }
 
+                // Activity Log Section
+                Section {
+                    activityLogSection
+                } header: {
+                    Label("Activity Log", systemImage: "list.bullet.rectangle")
+                }
+
                 // About Section
                 Section {
                     aboutSection
@@ -397,6 +404,31 @@ struct SettingsView: View {
                 Image(systemName: "speaker.wave.2")
             }
             .buttonStyle(.borderless)
+        }
+    }
+
+    // MARK: - Activity Log Section
+
+    @ViewBuilder
+    private var activityLogSection: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            ZStack {
+                GlassIconCircle(size: 32, material: .selection)
+                Image(systemName: "doc.text")
+                    .font(.title2)
+                    .foregroundColor(Theme.Accent.info)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Recent Activity")
+                Text("\(ActivityLogManager.shared.entries.count) entries")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Button("View Log") {
+                ActivityLogWindowController.shared.show()
+            }
+            .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
         }
     }
 
