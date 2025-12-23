@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 1.3.25</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.3.25</link>
+      <sparkle:version>1325</sparkle:version>
+      <sparkle:shortVersionString>1.3.25</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 1.3.25</h3>
+        <ul><li>Use case-insensitive name matching for paired device detection</li><li>Add "Paired" badge on device rows in scanner</li><li>Filter weak signals (<-90 dBm) from scan results</li><li>Update empty state with pairing instructions</li><li>[ ] Pair a non-Apple Bluetooth device in System Settings</li><li>[ ] Open Settings → Trusted Device → Scan for Devices</li><li>[ ] Device should appear with "Paired" badge</li><li>[ ] Select device → verify it's saved as trusted device</li></ul>
+      ]]></description>
+      <pubDate>Tue, 23 Dec 2025 03:04:31 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v1.3.25/MacGuard-1.3.25.dmg"
+        sparkle:edSignature="f28VAPOhMMHHAoDajyrfIxkWcBi6sloGEyTcnRTcvtpFoCCKLDL5aCs+mnw3bTThg7y8x6RpC2nZnlfmx+m3AA=="
+        length="6836125"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 1.3.24</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v1.3.24</link>
       <sparkle:version>1324</sparkle:version>
