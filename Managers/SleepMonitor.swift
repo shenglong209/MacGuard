@@ -80,8 +80,9 @@ class SleepMonitor {
         lastLidClosed = isLidClosed()
         print("[SleepMonitor] Lid state monitoring started (closed: \(lastLidClosed))")
 
-        // Poll every 0.5 seconds for lid state changes
-        lidStateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        // Poll every 1.0 second for lid state changes (reduced from 0.5s to lower CPU)
+        // 1.0s is still responsive for physical lid close action
+        lidStateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.checkLidState()
         }
     }
