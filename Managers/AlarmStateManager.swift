@@ -49,7 +49,7 @@ class AlarmStateManager: ObservableObject {
         startPermissionPolling()
 
         // Forward bluetoothManager changes to trigger view updates
-        bluetoothManager.$trustedDevice
+        bluetoothManager.$trustedDevices
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
@@ -187,10 +187,10 @@ class AlarmStateManager: ObservableObject {
         state = .idle
         ActivityLogManager.shared.log(.disarmed, "System disarmed")
 
-        // Only scan in idle if auto-arm enabled AND trusted device configured
+        // Only scan in idle if auto-arm enabled AND trusted devices configured
         // This reduces CPU from ~10% to <1% when feature is OFF (default)
         if AppSettings.shared.autoArmOnDeviceLeave,
-           bluetoothManager.trustedDevice != nil {
+           !bluetoothManager.trustedDevices.isEmpty {
             bluetoothManager.startScanning()
         }
     }
@@ -316,7 +316,7 @@ class AlarmStateManager: ObservableObject {
     private func handleSettingsChanged() {
         guard state == .idle else { return }
 
-        let shouldScan = AppSettings.shared.autoArmOnDeviceLeave && bluetoothManager.trustedDevice != nil
+        let shouldScan = AppSettings.shared.autoArmOnDeviceLeave && !bluetoothManager.trustedDevices.isEmpty
 
         if shouldScan && !bluetoothManager.isScanning {
             bluetoothManager.startScanning()
@@ -414,10 +414,16 @@ extension AlarmStateManager: BluetoothProximityDelegate {
     nonisolated func trustedDeviceAway(_ device: TrustedDevice) {
         Task { @MainActor in
             ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(device.name)' left proximity")
+            // Note: auto-arm logic now handled by allTrustedDevicesAway for multi-device
+        }
+    }
 
+    nonisolated func allTrustedDevicesAway() {
+        Task { @MainActor in
             guard AppSettings.shared.autoArmOnDeviceLeave,
                   self.state == .idle else { return }
 
+            ActivityLogManager.shared.log(.bluetooth, "All trusted devices away - starting grace period")
             self.startAutoArmTimer()
         }
     }

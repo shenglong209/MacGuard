@@ -39,10 +39,14 @@ struct SettingsView: View {
                     Label("Permissions", systemImage: "checkmark.shield")
                 }
 
-                // Trusted Device Section
+                // Trusted Devices Section
                 Section {
-                    if let device = alarmManager.bluetoothManager.trustedDevice {
-                        trustedDeviceRow(device)
+                    if alarmManager.bluetoothManager.trustedDevices.isEmpty {
+                        noDeviceConfigured
+                    } else {
+                        ForEach(alarmManager.bluetoothManager.trustedDevices) { device in
+                            trustedDeviceRow(device)
+                        }
 
                         Picker("Detection Distance", selection: $settings.proximityDistance) {
                             ForEach(ProximityDistance.allCases) { distance in
@@ -51,7 +55,7 @@ struct SettingsView: View {
                         }
                         .pickerStyle(.menu)
 
-                        Toggle("Auto-arm when device leaves", isOn: $settings.autoArmOnDeviceLeave)
+                        Toggle("Auto-arm when all devices leave", isOn: $settings.autoArmOnDeviceLeave)
 
                         if settings.autoArmOnDeviceLeave {
                             Picker("Grace period", selection: $settings.autoArmGracePeriod) {
@@ -62,11 +66,25 @@ struct SettingsView: View {
                             }
                             .pickerStyle(.menu)
                         }
-                    } else {
-                        noDeviceConfigured
                     }
+
+                    // Add Device button (always visible)
+                    Button {
+                        DeviceScannerWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
+                    } label: {
+                        Label("Add Device", systemImage: "plus.circle")
+                    }
+                    .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
+                    .disabled(alarmManager.bluetoothManager.trustedDevices.count >= 10)
+                    .help(alarmManager.bluetoothManager.trustedDevices.count >= 10 ? "Maximum 10 devices allowed" : "")
                 } header: {
-                    Label("Trusted Device", systemImage: "iphone")
+                    HStack {
+                        Label("Trusted Devices", systemImage: "iphone")
+                        if !alarmManager.bluetoothManager.trustedDevices.isEmpty {
+                            Text("(\(alarmManager.bluetoothManager.trustedDevices.count))")
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
 
                 // Security Section
@@ -247,13 +265,16 @@ struct SettingsView: View {
                 }
             }
             Spacer()
-            if alarmManager.bluetoothManager.isDeviceNearby {
+
+            // Show nearby status based on device's RSSI being within threshold
+            if let rssi = device.lastRSSI, rssi >= AppSettings.shared.proximityDistance.awayThreshold {
                 Label("Nearby", systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .foregroundColor(Theme.StateColor.armed)
             }
+
             Button("Remove") {
-                alarmManager.bluetoothManager.removeTrustedDevice()
+                alarmManager.bluetoothManager.removeTrustedDevice(device)
             }
             .buttonStyle(GlassSecondaryButtonStyle())
         }
@@ -262,16 +283,8 @@ struct SettingsView: View {
     // MARK: - No Device Configured
 
     private var noDeviceConfigured: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text("No trusted device configured")
-                .foregroundColor(.secondary)
-            Button {
-                DeviceScannerWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
-            } label: {
-                Label("Scan for Devices", systemImage: "wave.3.right")
-            }
-            .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
-        }
+        Text("No trusted devices configured")
+            .foregroundColor(.secondary)
     }
 
     // MARK: - Security Rows

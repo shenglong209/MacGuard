@@ -1,6 +1,6 @@
 # MacGuard Codebase Summary
 
-**Version:** 1.3.4 (Build 2)
+**Version:** 1.4.0
 **Language:** Swift 5.9+
 **Platform:** macOS 13.0 Ventura or later
 **Total LOC:** ~4,350 lines (Swift source files only)
@@ -84,13 +84,16 @@ MacGuard/
   - Triggers alarm on power disconnect when armed
 - **Frameworks:** IOKit
 
-### BluetoothProximityManager.swift (250 LOC)
-- **Purpose:** RSSI-based proximity detection for auto-disarm
+### BluetoothProximityManager.swift (~390 LOC)
+- **Purpose:** RSSI-based proximity detection for multiple trusted devices
 - **Responsibilities:**
   - Scans for paired Bluetooth devices
-  - Monitors RSSI signal strength
-  - Auto-disarms when trusted device is nearby (RSSI > -60 dB)
-  - Stores trusted device UUID in UserDefaults
+  - Manages up to 10 trusted devices with add/remove
+  - Monitors RSSI signal strength per device
+  - Auto-disarms when ANY trusted device is nearby (RSSI > threshold)
+  - Auto-arms when ALL trusted devices leave proximity
+  - Stores trusted devices array in UserDefaults (JSON encoded)
+  - Migrates legacy single-device data to new format
 - **Frameworks:** CoreBluetooth
 - **Permissions:** Bluetooth
 
@@ -143,13 +146,14 @@ MacGuard/
   - `launchAtLogin` - Launch app on system startup
 
 ### TrustedDevice.swift (39 LOC)
-- **Type:** Struct
+- **Type:** Struct (Codable)
 - **Purpose:** Bluetooth device model
 - **Properties:**
-  - `uuid` - Bluetooth UUID
+  - `id` - Bluetooth UUID (device identifier)
   - `name` - Device name
-  - `rssi` - Signal strength
-  - `isInProximity` - Computed property (RSSI > -60 dB)
+  - `lastRSSI` - Most recent signal strength (runtime only)
+  - `lastSeen` - Last detection timestamp (runtime only)
+  - `isInProximity` - Computed property (RSSI > threshold)
 
 ## Views (7 files)
 
@@ -192,12 +196,14 @@ MacGuard/
 - **Design Pattern:** Singleton
 
 ### DeviceScannerView.swift (352 LOC)
-- **Purpose:** Bluetooth device scanner for trusted device pairing
+- **Purpose:** Bluetooth device scanner for trusted device management
 - **Features:**
   - Lists only paired devices
   - Shows RSSI signal strength
-  - Device selection and removal
+  - Add devices to trusted list (up to 10)
+  - Remove devices from trusted list
   - Scanning indicator
+  - Add mode (appends) instead of replace mode
 - **UI Framework:** SwiftUI
 
 ### PINEntryView.swift (140 LOC)
@@ -379,14 +385,14 @@ swift build -c release
 ## Security Model
 
 ### Authentication Hierarchy
-1. **Bluetooth Proximity** - Auto-disarm when trusted device is nearby (RSSI > -60 dB)
+1. **Bluetooth Proximity** - Auto-disarm when ANY trusted device is nearby; auto-arm when ALL devices away
 2. **Touch ID** - Primary authentication method
 3. **PIN** - Fallback authentication (4-8 digits, Keychain-stored)
 
 ### Data Storage
-- **UserDefaults:** App settings, trusted device UUID
+- **UserDefaults:** App settings, trusted devices array (JSON encoded)
 - **Keychain:** PIN (key: `com.MacGuard.PIN`)
-- **In-Memory:** Authentication state, alarm state
+- **In-Memory:** Authentication state, alarm state, per-device proximity states
 
 ### Code Signing
 - **Development:** Optional (app works without signing)

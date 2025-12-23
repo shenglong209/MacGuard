@@ -113,21 +113,27 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
     func selectDevice(_ device: DiscoveredDevice) {
         guard let bluetoothManager = bluetoothManager else { return }
 
-        // Create a TrustedDevice and save it
+        // Create a TrustedDevice and add it
         let trustedDevice = TrustedDevice(
             id: device.id,
             name: device.name
         )
 
-        // Save directly via UserDefaults
-        if let data = try? JSONEncoder().encode(trustedDevice) {
-            UserDefaults.standard.set(data, forKey: "MacGuard.trustedDevice")
+        // Add device via BluetoothProximityManager
+        let added = bluetoothManager.addTrustedDevice(trustedDevice)
+        if added {
+            print("[Scanner] Added device: \(device.name)")
         }
+    }
 
-        // Reload in bluetooth manager
-        bluetoothManager.reloadTrustedDevice()
+    /// Check if device is already trusted
+    func isDeviceAlreadyTrusted(_ device: DiscoveredDevice) -> Bool {
+        bluetoothManager?.trustedDevices.contains { $0.id == device.id } ?? false
+    }
 
-        print("[Scanner] Selected device: \(device.name)")
+    /// Check if max devices reached
+    var isMaxDevicesReached: Bool {
+        (bluetoothManager?.trustedDevices.count ?? 0) >= 10
     }
 }
 
@@ -301,7 +307,12 @@ struct DeviceScannerContainerView: View {
         ScrollView {
             LazyVStack(spacing: Theme.Spacing.sm) {
                 ForEach(viewModel.discoveredDevices) { device in
-                    DeviceRowButton(device: device) {
+                    let isAlreadyAdded = viewModel.isDeviceAlreadyTrusted(device)
+                    DeviceRowButton(
+                        device: device,
+                        isAlreadyAdded: isAlreadyAdded,
+                        isDisabled: isAlreadyAdded || viewModel.isMaxDevicesReached
+                    ) {
                         viewModel.selectDevice(device)
                         onDismiss()
                     }
@@ -317,6 +328,8 @@ struct DeviceScannerContainerView: View {
 
 struct DeviceRowButton: View {
     let device: DiscoveredDevice
+    var isAlreadyAdded: Bool = false
+    var isDisabled: Bool = false
     let action: () -> Void
 
     @State private var isHovered = false
@@ -329,16 +342,26 @@ struct DeviceRowButton: View {
                     GlassIconCircle(size: 40, material: .selection)
                     Image(systemName: TrustedDevice.icon(for: device.name))
                         .font(.system(size: 18))
-                        .foregroundStyle(Theme.Accent.primary)
+                        .foregroundStyle(isAlreadyAdded ? .secondary : Theme.Accent.primary)
                 }
 
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     HStack(spacing: Theme.Spacing.sm) {
                         Text(device.name)
                             .font(.body.weight(.medium))
+                            .foregroundStyle(isAlreadyAdded ? .secondary : .primary)
 
-                        // Paired badge
-                        if device.isPaired {
+                        // Added badge for already-added devices
+                        if isAlreadyAdded {
+                            Text("Added")
+                                .font(.caption2)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Theme.StateColor.armed)
+                                .clipShape(Capsule())
+                        } else if device.isPaired {
+                            // Paired badge for non-added devices
                             Text("Paired")
                                 .font(.caption2)
                                 .foregroundStyle(.white)
@@ -360,9 +383,11 @@ struct DeviceRowButton: View {
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                if !isAlreadyAdded {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
             .padding(Theme.Spacing.md)
             .background {
@@ -373,13 +398,15 @@ struct DeviceRowButton: View {
                             material: .selection,
                             blendingMode: .withinWindow
                         )
-                        .opacity(isHovered ? 1 : 0)
+                        .opacity(isHovered && !isDisabled ? 1 : 0)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: Theme.CornerRadius.md))
             }
             .glassBorder(cornerRadius: Theme.CornerRadius.md)
+            .opacity(isDisabled ? 0.6 : 1.0)
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: Theme.Animation.hoverDuration)) {
                 isHovered = hovering
