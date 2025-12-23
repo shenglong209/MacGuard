@@ -24,46 +24,35 @@ struct MacGuardApp: App {
     }
 }
 
-/// Custom menu bar icon view with state-based appearance
+/// Custom menu bar icon view with state-based color tint
 struct MenuBarIconView: View {
     let state: AlarmState
 
     var body: some View {
-        HStack(spacing: 4) {
-            if let image = loadMenuBarIcon() {
-                Image(nsImage: image)
-            } else {
-                // Fallback to SF Symbol
-                Image(systemName: "shield")
-            }
-
-            // Show colored dot indicator for active states
-            if state != .idle {
-                Circle()
-                    .fill(indicatorColor)
-                    .frame(width: 6, height: 6)
-            }
-        }
+        Image(systemName: iconName)
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(iconColor)
     }
 
-    private func loadMenuBarIcon() -> NSImage? {
-        guard let url = ResourceBundle.url(forResource: "MenuBarIcon", withExtension: "png", subdirectory: "Resources"),
-              let image = NSImage(contentsOf: url) else {
-            return nil
-        }
-        // Template mode allows automatic light/dark mode adaptation
-        image.isTemplate = true
-        return image
-    }
-
-    private var indicatorColor: Color {
+    private var iconName: String {
         switch state {
         case .idle:
-            return .clear
+            return "shield"
+        case .armed:
+            return "shield.fill"
+        case .triggered, .alarming:
+            return "exclamationmark.shield.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        switch state {
+        case .idle:
+            return .primary
         case .armed:
             return .green
         case .triggered:
-            return .yellow
+            return .orange
         case .alarming:
             return .red
         }
