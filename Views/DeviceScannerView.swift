@@ -134,7 +134,7 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
 extension DeviceScannerViewModel: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
-            // Scan for peripherals to get RSSI readings
+            // Scan for all BLE peripherals to find paired devices
             central.scanForPeripherals(
                 withServices: nil,
                 options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
@@ -151,15 +151,24 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
     ) {
         guard let name = peripheral.name, !name.isEmpty else { return }
 
-        // Only show devices that are paired (match by name)
-        guard pairedDeviceNames.contains(name) else { return }
+        // Skip very weak signals
+        guard RSSI.intValue > -90 else { return }
+
+        // Check if device is paired (case-insensitive exact match)
+        let isPaired = pairedDeviceNames.contains { pairedName in
+            name.localizedCaseInsensitiveCompare(pairedName) == .orderedSame
+        }
+
+        // Only show paired devices
+        guard isPaired else { return }
 
         // Check if already in list
         if !discoveredDevices.contains(where: { $0.id == peripheral.identifier }) {
             let device = DiscoveredDevice(
                 id: peripheral.identifier,
                 name: name,
-                rssi: RSSI.intValue
+                rssi: RSSI.intValue,
+                isPaired: true
             )
             DispatchQueue.main.async {
                 self.discoveredDevices.append(device)
@@ -175,6 +184,7 @@ struct DiscoveredDevice: Identifiable {
     let id: UUID
     let name: String
     let rssi: Int
+    let isPaired: Bool
 }
 
 /// Container view with glass styling
@@ -274,7 +284,7 @@ struct DeviceScannerContainerView: View {
             VStack(spacing: Theme.Spacing.sm) {
                 Text("Looking for paired devices...")
                     .font(.system(.headline, design: .rounded))
-                Text("Only devices paired with this Mac will appear")
+                Text("Pair your device in System Settings → Bluetooth first")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -323,8 +333,21 @@ struct DeviceRowButton: View {
                 }
 
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    Text(device.name)
-                        .font(.body.weight(.medium))
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Text(device.name)
+                            .font(.body.weight(.medium))
+
+                        // Paired badge
+                        if device.isPaired {
+                            Text("Paired")
+                                .font(.caption2)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Theme.StateColor.armed)
+                                .clipShape(Capsule())
+                        }
+                    }
 
                     // Signal strength indicator
                     HStack(spacing: Theme.Spacing.xs) {
