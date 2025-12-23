@@ -119,10 +119,11 @@ class BluetoothProximityManager: NSObject, ObservableObject {
         }
         isDeviceNearby = false
 
-        // Scan with duplicates to get continuous RSSI updates
+        // Scan without duplicates - RSSI updates come from connected device's readRSSI()
+        // This reduces CPU from ~100-200 callbacks/sec to ~1 callback/device
         centralManager.scanForPeripherals(
             withServices: nil,
-            options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
+            options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
 
         // Start RSSI polling for connected devices
@@ -239,6 +240,11 @@ extension BluetoothProximityManager: CBCentralManagerDelegate {
         connectedPeripheral = peripheral
         peripheral.readRSSI()
         print("[Bluetooth] Connected to trusted device")
+
+        // Stop peripheral scanning - rely on connected RSSI readings (1.0s timer)
+        // Significantly reduces CPU usage while maintaining proximity detection
+        centralManager.stopScan()
+        print("[Bluetooth] Stopped scanning (connected to trusted device)")
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
@@ -247,7 +253,13 @@ extension BluetoothProximityManager: CBCentralManagerDelegate {
 
         // Reconnect if still trusted and scanning
         if isScanning, let device = trustedDevice, device.id == peripheral.identifier {
+            // Resume scanning to rediscover device
+            centralManager.scanForPeripherals(
+                withServices: nil,
+                options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
+            )
             centralManager.connect(peripheral, options: nil)
+            print("[Bluetooth] Resumed scanning (reconnecting)")
         }
     }
 
