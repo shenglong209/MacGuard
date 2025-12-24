@@ -268,11 +268,11 @@ struct TrustedDevicesConfigContainerView: View {
                 Spacer()
                 Picker("", selection: $settings.proximityDistance) {
                     ForEach(ProximityDistance.allCases) { distance in
-                        Text("\(distance.rawValue)").tag(distance)
+                        Text("\(distance.rawValue) (\(distance.description))").tag(distance)
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 120)
+                .frame(width: 180)
             }
 
             // Auto-arm toggle
