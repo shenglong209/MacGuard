@@ -76,32 +76,47 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
     @Published var isScanning = false
 
     private var centralManager: CBCentralManager?
-    private var pairedDeviceNames: Set<String> = []
+    private var bleDeviceUUIDs: Set<UUID> = []  // Track which devices were found via BLE
 
     func startScanning() {
         guard !isScanning else { return }
         isScanning = true
         discoveredDevices = []
+        bleDeviceUUIDs = []
 
-        // Get paired device names from IOBluetooth
-        loadPairedDeviceNames()
+        // First, load all paired devices from IOBluetooth (Classic + BLE)
+        loadPairedDevices()
 
-        // Create central manager for BLE discovery (to get RSSI)
+        // Then start BLE scan to get RSSI and detect BLE-capable devices
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
 
-    /// Load paired device names from system Bluetooth
-    private func loadPairedDeviceNames() {
-        pairedDeviceNames = []
+    /// Load all paired devices from IOBluetooth
+    private func loadPairedDevices() {
         guard let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else {
             return
         }
-        for device in paired {
-            if let name = device.name, !name.isEmpty {
-                pairedDeviceNames.insert(name)
-                print("[Scanner] Paired device: \(name)")
-            }
+
+        for ioDevice in paired {
+            guard let name = ioDevice.name, !name.isEmpty else { continue }
+
+            // Create discovered device with IOBluetooth data
+            let device = DiscoveredDevice(
+                id: UUID(),  // Generate new UUID (will be replaced if found via BLE)
+                name: name,
+                rssi: ioDevice.isConnected() ? Int(ioDevice.rawRSSI()) : -80,
+                isPaired: true,
+                bluetoothAddress: ioDevice.addressString,
+                isClassicBluetooth: true,  // Assume classic until proven BLE
+                isConnected: ioDevice.isConnected()
+            )
+
+            discoveredDevices.append(device)
+            print("[Scanner] Paired device: \(name) (addr: \(ioDevice.addressString ?? "?"), connected: \(ioDevice.isConnected()))")
         }
+
+        // Sort by connection status, then by signal strength
+        sortDevices()
     }
 
     func stopScanning() {
@@ -113,39 +128,58 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
     func selectDevice(_ device: DiscoveredDevice) {
         guard let bluetoothManager = bluetoothManager else { return }
 
-        // Create a TrustedDevice and add it
+        // Create a TrustedDevice with appropriate type
         let trustedDevice = TrustedDevice(
             id: device.id,
-            name: device.name
+            name: device.name,
+            bluetoothAddress: device.bluetoothAddress,
+            isClassicBluetooth: device.isClassicBluetooth
         )
 
         // Add device via BluetoothProximityManager
         let added = bluetoothManager.addTrustedDevice(trustedDevice)
         if added {
-            print("[Scanner] Added device: \(device.name)")
+            print("[Scanner] Added device: \(device.name) (classic: \(device.isClassicBluetooth))")
         }
     }
 
     /// Check if device is already trusted
     func isDeviceAlreadyTrusted(_ device: DiscoveredDevice) -> Bool {
-        bluetoothManager?.trustedDevices.contains { $0.id == device.id } ?? false
+        guard let manager = bluetoothManager else { return false }
+
+        // Check by ID or Bluetooth address
+        return manager.trustedDevices.contains {
+            $0.id == device.id ||
+            (device.bluetoothAddress != nil && $0.bluetoothAddress == device.bluetoothAddress)
+        }
     }
 
     /// Check if max devices reached
     var isMaxDevicesReached: Bool {
         (bluetoothManager?.trustedDevices.count ?? 0) >= 10
     }
+
+    private func sortDevices() {
+        discoveredDevices.sort { a, b in
+            // Connected devices first
+            if a.isConnected != b.isConnected {
+                return a.isConnected
+            }
+            // Then by signal strength
+            return a.rssi > b.rssi
+        }
+    }
 }
 
 extension DeviceScannerViewModel: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
-            // Scan for all BLE peripherals to find paired devices
+            // Scan for BLE peripherals to identify BLE-capable devices
             central.scanForPeripherals(
                 withServices: nil,
                 options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
             )
-            print("[Scanner] Started scanning for paired devices")
+            print("[Scanner] Started BLE scanning to identify device types")
         }
     }
 
@@ -156,41 +190,41 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         guard let name = peripheral.name, !name.isEmpty else { return }
-
-        // Skip very weak signals
         guard RSSI.intValue > -90 else { return }
 
-        // Check if device is paired (case-insensitive exact match)
-        let isPaired = pairedDeviceNames.contains { pairedName in
-            name.localizedCaseInsensitiveCompare(pairedName) == .orderedSame
+        // Find matching device in our paired list by name
+        // Only update existing paired devices - ignore unpaired BLE devices
+        if let index = discoveredDevices.firstIndex(where: {
+            $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+        }) {
+            var device = discoveredDevices[index]
+
+            // Device found via BLE scan - it supports BLE RSSI tracking
+            // Update to use BLE (even if it was initially loaded from IOBluetooth)
+            device.id = peripheral.identifier
+            device.rssi = RSSI.intValue
+            device.isClassicBluetooth = false  // Supports BLE
+            discoveredDevices[index] = device
+            bleDeviceUUIDs.insert(peripheral.identifier)
+            print("[Scanner] Device \(name) found via BLE, UUID: \(peripheral.identifier)")
         }
+        // Note: Unpaired BLE devices are intentionally ignored - only paired devices shown
 
-        // Only show paired devices
-        guard isPaired else { return }
-
-        // Check if already in list
-        if !discoveredDevices.contains(where: { $0.id == peripheral.identifier }) {
-            let device = DiscoveredDevice(
-                id: peripheral.identifier,
-                name: name,
-                rssi: RSSI.intValue,
-                isPaired: true
-            )
-            DispatchQueue.main.async {
-                self.discoveredDevices.append(device)
-                self.discoveredDevices.sort { $0.rssi > $1.rssi }
-            }
-            print("[Scanner] Found paired device: \(name) (RSSI: \(RSSI))")
+        DispatchQueue.main.async {
+            self.sortDevices()
         }
     }
 }
 
 /// Discovered device model
 struct DiscoveredDevice: Identifiable {
-    let id: UUID
+    var id: UUID
     let name: String
-    let rssi: Int
+    var rssi: Int
     let isPaired: Bool
+    let bluetoothAddress: String?
+    var isClassicBluetooth: Bool
+    var isConnected: Bool
 }
 
 /// Container view with glass styling
@@ -360,24 +394,42 @@ struct DeviceRowButton: View {
                                 .padding(.vertical, 2)
                                 .background(Theme.StateColor.armed)
                                 .clipShape(Capsule())
-                        } else if device.isPaired {
-                            // Paired badge for non-added devices
-                            Text("Paired")
+                        } else if device.isConnected {
+                            // Connected badge
+                            Text("Connected")
                                 .font(.caption2)
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Theme.StateColor.armed)
                                 .clipShape(Capsule())
+                        } else if device.isPaired {
+                            // Paired badge
+                            Text("Paired")
+                                .font(.caption2)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.orange)
+                                .clipShape(Capsule())
                         }
                     }
 
-                    // Signal strength indicator
+                    // Device type and signal info
                     HStack(spacing: Theme.Spacing.xs) {
-                        SignalStrengthView(rssi: device.rssi)
-                        Text(signalStrengthText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if device.isConnected {
+                            SignalStrengthView(rssi: device.rssi)
+                            Text(signalStrengthText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Image(systemName: device.isClassicBluetooth ? "antenna.radiowaves.left.and.right" : "wave.3.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(device.isClassicBluetooth ? "Classic BT" : "BLE")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 

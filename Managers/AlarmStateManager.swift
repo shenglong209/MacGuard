@@ -221,10 +221,16 @@ class AlarmStateManager: ObservableObject {
     func trigger() {
         guard state == .armed else { return }
 
-        // Check if trusted device is nearby - if so, don't trigger
+        // Check if trusted device is nearby - behavior depends on auto-arm mode
         if bluetoothManager.isTrustedDeviceNearby() {
-            ActivityLogManager.shared.log(.bluetooth, "Trusted device nearby - ignoring trigger")
-            return
+            // In "all devices away" mode: any nearby device suppresses trigger
+            // In "any device away" mode: don't suppress - user explicitly wants alarm when any device is away
+            if AppSettings.shared.autoArmMode == .allDevicesAway {
+                ActivityLogManager.shared.log(.bluetooth, "Trusted device nearby - ignoring trigger")
+                return
+            }
+            // "Any device away" mode: continue with trigger even if some devices are nearby
+            ActivityLogManager.shared.log(.bluetooth, "Some devices nearby but 'any away' mode - proceeding with trigger")
         }
 
         let duration = AppSettings.shared.countdownDuration
@@ -249,10 +255,15 @@ class AlarmStateManager: ObservableObject {
     func triggerImmediate() {
         guard state == .armed || state == .triggered else { return }
 
-        // Even for immediate triggers, check Bluetooth proximity
+        // Check Bluetooth proximity - behavior depends on auto-arm mode
         if bluetoothManager.isTrustedDeviceNearby() {
-            ActivityLogManager.shared.log(.bluetooth, "Trusted device nearby - ignoring immediate trigger")
-            return
+            // In "all devices away" mode: any nearby device suppresses trigger
+            if AppSettings.shared.autoArmMode == .allDevicesAway {
+                ActivityLogManager.shared.log(.bluetooth, "Trusted device nearby - ignoring immediate trigger")
+                return
+            }
+            // "Any device away" mode: proceed with trigger
+            ActivityLogManager.shared.log(.bluetooth, "Some devices nearby but 'any away' mode - proceeding with immediate trigger")
         }
 
         countdownTimer?.invalidate()
@@ -414,13 +425,21 @@ extension AlarmStateManager: BluetoothProximityDelegate {
     nonisolated func trustedDeviceAway(_ device: TrustedDevice) {
         Task { @MainActor in
             ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(device.name)' left proximity")
-            // Note: auto-arm logic now handled by allTrustedDevicesAway for multi-device
+
+            // For "any device away" mode - start auto-arm when any device leaves
+            guard AppSettings.shared.autoArmOnDeviceLeave,
+                  AppSettings.shared.autoArmMode == .anyDeviceAway,
+                  self.state == .idle else { return }
+
+            ActivityLogManager.shared.log(.bluetooth, "Any device away mode - starting grace period")
+            self.startAutoArmTimer()
         }
     }
 
     nonisolated func allTrustedDevicesAway() {
         Task { @MainActor in
             guard AppSettings.shared.autoArmOnDeviceLeave,
+                  AppSettings.shared.autoArmMode == .allDevicesAway,
                   self.state == .idle else { return }
 
             ActivityLogManager.shared.log(.bluetooth, "All trusted devices away - starting grace period")
