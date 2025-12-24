@@ -13,6 +13,7 @@ class DeviceScannerWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var hostingController: NSHostingController<DeviceScannerContainerView>?
     private var viewModel = DeviceScannerViewModel()
+    private weak var parentWindow: NSWindow?
 
     private override init() {
         super.init()
@@ -22,6 +23,8 @@ class DeviceScannerWindowController: NSObject, NSWindowDelegate {
         viewModel.bluetoothManager = bluetoothManager
         viewModel.discoveredDevices = []
         viewModel.isScanning = false
+        // Track parent window for refocus
+        self.parentWindow = NSApp.keyWindow
 
         if window == nil {
             createWindow()
@@ -38,9 +41,7 @@ class DeviceScannerWindowController: NSObject, NSWindowDelegate {
 
     private func createWindow() {
         let view = DeviceScannerContainerView(viewModel: viewModel, onDismiss: { [weak self] in
-            self?.viewModel.stopScanning()
-            self?.window?.orderOut(nil)
-            // Don't change activation policy - let Settings window handle it
+            self?.close()
         })
         hostingController = NSHostingController(rootView: view)
 
@@ -63,9 +64,21 @@ class DeviceScannerWindowController: NSObject, NSWindowDelegate {
         window = newWindow
     }
 
+    private func close() {
+        viewModel.stopScanning()
+        window?.orderOut(nil)
+        refocusParent()
+    }
+
+    private func refocusParent() {
+        if let parent = parentWindow, parent.isVisible {
+            parent.makeKeyAndOrderFront(nil)
+        }
+    }
+
     func windowWillClose(_ notification: Notification) {
         viewModel.stopScanning()
-        // Don't change activation policy - let Settings window handle it
+        refocusParent()
     }
 }
 

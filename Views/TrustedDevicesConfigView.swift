@@ -11,6 +11,7 @@ class TrustedDevicesConfigWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var hostingController: NSHostingController<TrustedDevicesConfigContainerView>?
     private var bluetoothManager: BluetoothProximityManager?
+    private weak var parentWindow: NSWindow?
 
     private override init() {
         super.init()
@@ -18,6 +19,8 @@ class TrustedDevicesConfigWindowController: NSObject, NSWindowDelegate {
 
     func show(bluetoothManager: BluetoothProximityManager) {
         self.bluetoothManager = bluetoothManager
+        // Track parent window for refocus
+        self.parentWindow = NSApp.keyWindow
 
         if window == nil {
             createWindow()
@@ -35,7 +38,7 @@ class TrustedDevicesConfigWindowController: NSObject, NSWindowDelegate {
         let view = TrustedDevicesConfigContainerView(
             bluetoothManager: bluetoothManager,
             onDismiss: { [weak self] in
-                self?.window?.orderOut(nil)
+                self?.close()
             }
         )
         hostingController = NSHostingController(rootView: view)
@@ -57,8 +60,19 @@ class TrustedDevicesConfigWindowController: NSObject, NSWindowDelegate {
         window = newWindow
     }
 
+    private func close() {
+        window?.orderOut(nil)
+        refocusParent()
+    }
+
+    private func refocusParent() {
+        if let parent = parentWindow, parent.isVisible {
+            parent.makeKeyAndOrderFront(nil)
+        }
+    }
+
     func windowWillClose(_ notification: Notification) {
-        // Don't change activation policy - let Settings window handle it
+        refocusParent()
     }
 }
 
