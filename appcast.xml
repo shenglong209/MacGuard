@@ -13,7 +13,7 @@
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
         <h3>What's New in 2.0.1</h3>
-        <ul><li>Menu bar icon now changes based on alarm state using SF Symbols with color tint</li><li>Idle: outline shield (primary color)</li><li>Armed: filled green shield  </li><li>Triggered/Alarming: exclamation shield (orange/red)</li><li>[x] Run app and verify icon shows outline shield when idle</li><li>[x] Arm the app and verify icon changes to filled green shield</li><li>[x] Trigger alarm and verify icon changes to orange exclamation shield</li><li>[x] Verify icon colors work in both light and dark mode</li></ul>
+        <ul><li>Support Multiple Trusted Device</li><li>Non-apple device supported</li><li>Improvement:- Auto-arm when ALL devices leave, auto-disarm when ANY returns^M- Updated Settings UI with device list and add/remove buttons^M- DeviceScannerView now adds devices instead of replacing^M- and fixed some bugs</li></ul>
       ]]></description>
       <pubDate>Wed, 24 Dec 2025 06:25:15 +0000</pubDate>
       <enclosure
