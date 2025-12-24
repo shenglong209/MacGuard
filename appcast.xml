@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.1</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.1</link>
+      <sparkle:version>201</sparkle:version>
+      <sparkle:shortVersionString>2.0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 2.0.1</h3>
+        <ul><li>Menu bar icon now changes based on alarm state using SF Symbols with color tint</li><li>Idle: outline shield (primary color)</li><li>Armed: filled green shield  </li><li>Triggered/Alarming: exclamation shield (orange/red)</li><li>[x] Run app and verify icon shows outline shield when idle</li><li>[x] Arm the app and verify icon changes to filled green shield</li><li>[x] Trigger alarm and verify icon changes to orange exclamation shield</li><li>[x] Verify icon colors work in both light and dark mode</li></ul>
+      ]]></description>
+      <pubDate>Wed, 24 Dec 2025 06:25:15 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v2.0.1/MacGuard-2.0.1.dmg"
+        sparkle:edSignature="bjkH5muzIB+gC+4ssuEM0jK058ESR9jpnV8ng7O7uvXhYAhSlbgTt1R1uKLRRw6WqUJyblGBLiOc2ctUzMcAAQ=="
+        length="6910585"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 2.0.0</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.0</link>
       <sparkle:version>200</sparkle:version>
