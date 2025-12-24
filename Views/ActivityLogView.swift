@@ -7,14 +7,15 @@ import SwiftUI
 /// Activity log viewer displayed in a sheet/window
 struct ActivityLogView: View {
     @ObservedObject private var logManager = ActivityLogManager.shared
-    @State private var selectedCategory: ActivityLogCategory?
+    @State private var selectedCategories: Set<ActivityLogCategory> = Set(ActivityLogCategory.allCases)
     @State private var searchText = ""
 
     private var filteredEntries: [ActivityLogEntry] {
         var entries = logManager.entries
 
-        if let category = selectedCategory {
-            entries = entries.filter { $0.category == category }
+        // Filter by selected categories (if not all selected)
+        if selectedCategories.count < ActivityLogCategory.allCases.count {
+            entries = entries.filter { selectedCategories.contains($0.category) }
         }
 
         if !searchText.isEmpty {
@@ -24,6 +25,22 @@ struct ActivityLogView: View {
         }
 
         return entries
+    }
+
+    /// Check if all categories are selected
+    private var allCategoriesSelected: Bool {
+        selectedCategories.count == ActivityLogCategory.allCases.count
+    }
+
+    /// Label for the filter button
+    private var filterLabel: String {
+        if allCategoriesSelected || selectedCategories.isEmpty {
+            return "All"
+        } else if selectedCategories.count == 1 {
+            return selectedCategories.first!.rawValue
+        } else {
+            return "\(selectedCategories.count) selected"
+        }
     }
 
     var body: some View {
@@ -56,15 +73,38 @@ struct ActivityLogView: View {
     private var headerView: some View {
         VStack(spacing: Theme.Spacing.sm) {
             HStack {
-                Text("Activity Log")
+                Text("Event Log")
                     .font(.headline)
 
                 Spacer()
 
-                Button("Clear") {
-                    logManager.clear()
+                // Export menu
+                Menu {
+                    Button {
+                        logManager.copyToClipboard()
+                    } label: {
+                        Label("Copy to Clipboard", systemImage: "doc.on.clipboard")
+                    }
+
+                    Button {
+                        logManager.shareLogFile()
+                    } label: {
+                        Label("Share Log File...", systemImage: "square.and.arrow.up")
+                    }
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        logManager.clear()
+                    } label: {
+                        Label("Clear Log", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
                 }
-                .buttonStyle(GlassSecondaryButtonStyle())
+                .menuStyle(.borderlessButton)
+                .frame(width: 30)
             }
 
             HStack(spacing: Theme.Spacing.sm) {
@@ -82,16 +122,52 @@ struct ActivityLogView: View {
                         .fill(.quaternary)
                 }
 
-                // Category filter
-                Picker("", selection: $selectedCategory) {
-                    Text("All").tag(nil as ActivityLogCategory?)
-                    ForEach(ActivityLogCategory.allCases, id: \.self) { category in
-                        Label(category.rawValue, systemImage: category.icon)
-                            .tag(category as ActivityLogCategory?)
+                // Category filter menu (multi-select)
+                Menu {
+                    // All toggle
+                    Button {
+                        if allCategoriesSelected {
+                            selectedCategories.removeAll()
+                        } else {
+                            selectedCategories = Set(ActivityLogCategory.allCases)
+                        }
+                    } label: {
+                        HStack {
+                            if allCategoriesSelected {
+                                Image(systemName: "checkmark")
+                            }
+                            Text("All")
+                        }
                     }
+
+                    Divider()
+
+                    // Individual category toggles
+                    ForEach(ActivityLogCategory.allCases, id: \.self) { category in
+                        Button {
+                            if selectedCategories.contains(category) {
+                                selectedCategories.remove(category)
+                            } else {
+                                selectedCategories.insert(category)
+                            }
+                        } label: {
+                            HStack {
+                                if selectedCategories.contains(category) {
+                                    Image(systemName: "checkmark")
+                                }
+                                Label(category.rawValue, systemImage: category.icon)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                        Text(filterLabel)
+                            .lineLimit(1)
+                    }
+                    .frame(width: 120)
                 }
-                .pickerStyle(.menu)
-                .frame(width: 120)
+                .menuStyle(.borderlessButton)
             }
         }
         .padding(Theme.Spacing.md)
@@ -152,11 +228,11 @@ struct ActivityLogView: View {
                 .font(.system(size: 40))
                 .foregroundColor(.secondary)
 
-            Text("No activity logs")
+            Text("No events yet")
                 .font(.headline)
                 .foregroundColor(.secondary)
 
-            Text("Activity will appear here as events occur")
+            Text("Events will appear here as they occur")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -216,7 +292,7 @@ class ActivityLogWindowController: NSObject, NSWindowDelegate {
         )
 
         newWindow.contentViewController = hostingController
-        newWindow.title = "Activity Log"
+        newWindow.title = "Event Log"
         newWindow.isReleasedWhenClosed = false
         newWindow.delegate = self
         newWindow.minSize = NSSize(width: 400, height: 300)

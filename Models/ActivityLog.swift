@@ -5,7 +5,7 @@
 import Foundation
 
 /// Log entry category for filtering and display
-enum ActivityLogCategory: String, CaseIterable {
+enum ActivityLogCategory: String, CaseIterable, Codable {
     case system = "System"
     case armed = "Armed"
     case disarmed = "Disarmed"
@@ -30,11 +30,18 @@ enum ActivityLogCategory: String, CaseIterable {
 }
 
 /// Single activity log entry
-struct ActivityLogEntry: Identifiable {
-    let id = UUID()
+struct ActivityLogEntry: Identifiable, Codable {
+    let id: UUID
     let timestamp: Date
     let category: ActivityLogCategory
     let message: String
+
+    init(id: UUID = UUID(), timestamp: Date, category: ActivityLogCategory, message: String) {
+        self.id = id
+        self.timestamp = timestamp
+        self.category = category
+        self.message = message
+    }
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()

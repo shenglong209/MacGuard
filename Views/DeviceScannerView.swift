@@ -125,7 +125,7 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
             )
 
             discoveredDevices.append(device)
-            print("[Scanner] Paired device: \(name) (addr: \(ioDevice.addressString ?? "?"), connected: \(ioDevice.isConnected()))")
+            Task { @MainActor in ActivityLogManager.shared.log(.bluetooth, "Paired device: \(name) (addr: \(ioDevice.addressString ?? "?"), connected: \(ioDevice.isConnected()))") }
         }
 
         // Sort by connection status, then by signal strength
@@ -152,7 +152,7 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
         // Add device via BluetoothProximityManager
         let added = bluetoothManager.addTrustedDevice(trustedDevice)
         if added {
-            print("[Scanner] Added device: \(device.name) (classic: \(device.isClassicBluetooth))")
+            Task { @MainActor in ActivityLogManager.shared.log(.bluetooth, "Added device: \(device.name) (classic: \(device.isClassicBluetooth))") }
         }
     }
 
@@ -192,7 +192,7 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
                 withServices: nil,
                 options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
             )
-            print("[Scanner] Started BLE scanning to identify device types")
+            Task { @MainActor in ActivityLogManager.shared.log(.bluetooth, "Started BLE scanning to identify device types") }
         }
     }
 
@@ -219,7 +219,7 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
             device.isClassicBluetooth = false  // Supports BLE
             discoveredDevices[index] = device
             bleDeviceUUIDs.insert(peripheral.identifier)
-            print("[Scanner] Device \(name) found via BLE, UUID: \(peripheral.identifier)")
+            Task { @MainActor in ActivityLogManager.shared.log(.bluetooth, "Device \(name) found via BLE, UUID: \(peripheral.identifier)") }
         }
         // Note: Unpaired BLE devices are intentionally ignored - only paired devices shown
 

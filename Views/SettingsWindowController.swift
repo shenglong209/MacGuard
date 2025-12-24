@@ -19,7 +19,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
 
     /// Show the settings window
     func show(alarmManager: AlarmStateManager) {
-        print("[Settings] show() called")
+        Task { @MainActor in ActivityLogManager.shared.log(.system, "Settings show() called") }
         currentAlarmManager = alarmManager
 
         // Create window if needed
@@ -35,11 +35,11 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        print("[Settings] Window shown")
+        Task { @MainActor in ActivityLogManager.shared.log(.system, "Settings window shown") }
     }
 
     private func createWindow(alarmManager: AlarmStateManager) {
-        print("[Settings] Creating window")
+        Task { @MainActor in ActivityLogManager.shared.log(.system, "Creating settings window") }
 
         let view = SettingsView(alarmManager: alarmManager)
         hostingController = NSHostingController(rootView: view)
@@ -62,7 +62,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         newWindow.delegate = self
 
         window = newWindow
-        print("[Settings] Window created")
+        Task { @MainActor in ActivityLogManager.shared.log(.system, "Settings window created") }
     }
 
     /// Hide the settings window
@@ -73,7 +73,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
-        print("[Settings] Window closed")
+        Task { @MainActor in ActivityLogManager.shared.log(.system, "Settings window closed") }
         // Revert to accessory app (menu bar only)
         NSApp.setActivationPolicy(.accessory)
     }

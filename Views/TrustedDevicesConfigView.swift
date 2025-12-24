@@ -89,7 +89,7 @@ struct TrustedDevicesConfigContainerView: View {
 
             Divider()
 
-            // Device list
+            // Scrollable content (devices + settings)
             ScrollView {
                 VStack(spacing: Theme.Spacing.md) {
                     if bluetoothManager.trustedDevices.isEmpty {
@@ -97,22 +97,23 @@ struct TrustedDevicesConfigContainerView: View {
                     } else {
                         deviceListView
                     }
+
+                    // Settings section (inside scroll)
+                    if !bluetoothManager.trustedDevices.isEmpty {
+                        Divider()
+                            .padding(.vertical, Theme.Spacing.sm)
+                        settingsContent
+                    }
                 }
                 .padding(Theme.Spacing.lg)
             }
 
             Divider()
 
-            // Settings section
-            if !bluetoothManager.trustedDevices.isEmpty {
-                settingsSection
-                Divider()
-            }
-
             // Footer
             footerView
         }
-        .frame(width: 450, height: 500)
+        .frame(width: 450, height: 520)
         .background {
             VisualEffectView(
                 material: .sidebar,
@@ -196,7 +197,7 @@ struct TrustedDevicesConfigContainerView: View {
 
     private func deviceRow(_ device: TrustedDevice) -> some View {
         let connectionStatus = bluetoothManager.connectionStatus(for: device)
-        let isNearby = device.lastRSSI.map { $0 >= AppSettings.shared.proximityDistance.awayThreshold } ?? false
+        let isNearby = device.lastRSSI.map { $0 >= AppSettings.shared.effectiveAwayThreshold } ?? false
 
         return HStack(spacing: Theme.Spacing.md) {
             // Device icon
@@ -272,21 +273,28 @@ struct TrustedDevicesConfigContainerView: View {
         .glassBorder(cornerRadius: Theme.CornerRadius.md)
     }
 
-    // MARK: - Settings Section
+    // MARK: - Settings Content
 
-    private var settingsSection: some View {
+    private var settingsContent: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             // Detection Distance
             HStack {
                 Text("Detection Distance")
                 Spacer()
                 Picker("", selection: $settings.proximityDistance) {
-                    ForEach(ProximityDistance.allCases) { distance in
+                    ForEach(ProximityDistance.presets) { distance in
                         Text("\(distance.rawValue) (\(distance.description))").tag(distance)
                     }
+                    Divider()
+                    Text("Custom").tag(ProximityDistance.custom)
                 }
                 .pickerStyle(.menu)
                 .frame(width: 180)
+            }
+
+            // Custom threshold sliders (when custom is selected)
+            if settings.proximityDistance == .custom {
+                customThresholdView
             }
 
             // Auto-arm toggle
@@ -313,6 +321,7 @@ struct TrustedDevicesConfigContainerView: View {
                     Text("Grace period")
                     Spacer()
                     Picker("", selection: $settings.autoArmGracePeriod) {
+                        Text("5 sec").tag(5)
                         Text("10 sec").tag(10)
                         Text("15 sec").tag(15)
                         Text("30 sec").tag(30)
@@ -323,10 +332,119 @@ struct TrustedDevicesConfigContainerView: View {
                 }
             }
         }
-        .padding(Theme.Spacing.lg)
-        .background {
-            GlassBackground(material: .headerView, cornerRadius: 0)
+    }
+
+    // MARK: - Custom Threshold View
+
+    private var customThresholdView: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            // Current device signal reference
+            if let nearestRSSI = nearestDeviceRSSI {
+                HStack(spacing: Theme.Spacing.sm) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .foregroundStyle(Theme.StateColor.armed)
+                    Text("Current signal: \(nearestRSSI) dBm")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, Theme.Spacing.sm)
+                .padding(.vertical, Theme.Spacing.xs)
+                .background {
+                    RoundedRectangle(cornerRadius: Theme.CornerRadius.sm)
+                        .fill(Theme.StateColor.armed.opacity(0.1))
+                }
+            }
+
+            // Single detection range slider
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                HStack {
+                    Text("Detection Range")
+                        .font(.subheadline)
+                    Spacer()
+                    Text(rangeDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                // Slider with distance labels
+                HStack(spacing: Theme.Spacing.sm) {
+                    Text("Far")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(settings.customDetectionRange) },
+                            set: { settings.customDetectionRange = Int($0) }
+                        ),
+                        in: -100...(-55),
+                        step: 5
+
+                    )
+
+                    Text("Close")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+
+                // Visual indicator showing current device position
+                if let nearestRSSI = nearestDeviceRSSI {
+                    GeometryReader { geo in
+                        let range = -55.0 - (-100.0)  // 50 dBm range
+                        let position = (Double(nearestRSSI) - (-100.0)) / range
+                        let clampedPosition = min(max(position, 0), 1)
+
+                        ZStack(alignment: .leading) {
+                            // Track
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(height: 4)
+
+                            // Device position marker
+                            Circle()
+                                .fill(Theme.StateColor.armed)
+                                .frame(width: 8, height: 8)
+                                .offset(x: (geo.size.width - 8) * clampedPosition)
+                        }
+                    }
+                    .frame(height: 8)
+
+                    Text("Green dot = your device's current position")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
+        .padding(Theme.Spacing.md)
+        .background {
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.md)
+                .fill(.clear)
+                .background(
+                    VisualEffectView(
+                        material: .selection,
+                        blendingMode: .withinWindow
+                    )
+                    .opacity(0.5)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: Theme.CornerRadius.md))
+        }
+        .glassBorder(cornerRadius: Theme.CornerRadius.md)
+    }
+
+    /// User-friendly range description based on awayThreshold (slider - 5)
+    private var rangeDescription: String {
+        let awayThreshold = settings.customDetectionRange - 5  // Actual detection threshold
+        if awayThreshold >= -70 { return "\(settings.customDetectionRange)dBm [~1-2m (Near)]" }
+        if awayThreshold >= -80 { return "\(settings.customDetectionRange)dBm [~3-5m (Medium)]" }
+        if awayThreshold >= -95 { return "\(settings.customDetectionRange)dBm [~7-10m (Far)]" }
+        return "\(settings.customDetectionRange)dBm [~10m+ (Very Far)]"
+    }
+
+    /// Get the strongest RSSI from connected devices (for reference)
+    private var nearestDeviceRSSI: Int? {
+        bluetoothManager.trustedDevices
+            .compactMap { $0.lastRSSI }
+            .max()
     }
 
     // MARK: - Footer

@@ -131,6 +131,7 @@ class AlarmStateManager: ObservableObject {
 
             // Start Bluetooth proximity scanning
             self.bluetoothManager.startScanning()
+            self.bluetoothManager.setArmedState(true)
 
             self.hasAccessibilityPermission = true
             self.state = .armed
@@ -148,9 +149,9 @@ class AlarmStateManager: ObservableObject {
         do {
             try task.run()
             task.waitUntilExit()
-            print("[MacGuard] Screen locked via pmset")
+            ActivityLogManager.shared.log(.system, "Screen locked via pmset")
         } catch {
-            print("[MacGuard] Failed to lock via pmset: \(error)")
+            ActivityLogManager.shared.log(.system, "Failed to lock via pmset: \(error)")
             // Fallback: AppleScript
             lockScreenViaAppleScript()
         }
@@ -164,19 +165,21 @@ class AlarmStateManager: ObservableObject {
         if let scriptObject = NSAppleScript(source: script) {
             scriptObject.executeAndReturnError(&error)
             if error == nil {
-                print("[MacGuard] Screen locked via AppleScript")
+                ActivityLogManager.shared.log(.system, "Screen locked via AppleScript")
             }
         }
     }
 
     /// Disarm the alarm system, stop all monitoring
-    func disarm() {
+    /// - Parameter reason: Optional reason for disarming (logged to activity log)
+    func disarm(reason: String? = nil) {
         countdownTimer?.invalidate()
         countdownTimer = nil
         cancelAutoArmTimer()
         inputMonitor.stopMonitoring()
         sleepMonitor.stopMonitoring()
         powerMonitor.stopMonitoring()
+        bluetoothManager.setArmedState(false)
         bluetoothManager.stopScanning()
 
         // Stop audio, release pre-loaded audio, and hide overlay
@@ -185,7 +188,7 @@ class AlarmStateManager: ObservableObject {
         overlayController.hide()
 
         state = .idle
-        ActivityLogManager.shared.log(.disarmed, "System disarmed")
+        ActivityLogManager.shared.log(.disarmed, reason ?? "System disarmed")
 
         // Only scan in idle if auto-arm enabled AND trusted devices configured
         // This reduces CPU from ~10% to <1% when feature is OFF (default)
@@ -200,7 +203,7 @@ class AlarmStateManager: ObservableObject {
     func attemptBiometricDisarm(completion: @escaping (Bool) -> Void) {
         authManager.authenticateWithBiometrics { [weak self] success, error in
             if success {
-                self?.disarm()
+                self?.disarm(reason: "Disarmed via Touch ID")
             }
             completion(success)
         }
@@ -211,7 +214,7 @@ class AlarmStateManager: ObservableObject {
     /// - Returns: true if PIN is correct and alarm is disarmed
     func attemptPINDisarm(_ pin: String) -> Bool {
         if authManager.validatePIN(pin) {
-            disarm()
+            disarm(reason: "Disarmed via PIN")
             return true
         }
         return false
@@ -315,9 +318,9 @@ class AlarmStateManager: ObservableObject {
         }
     }
 
-    private func cancelAutoArmTimer() {
+    private func cancelAutoArmTimer(reason: String? = nil) {
         if autoArmTimer != nil {
-            ActivityLogManager.shared.log(.system, "Auto-arm timer cancelled - device returned")
+            ActivityLogManager.shared.log(.system, reason ?? "Auto-arm timer cancelled")
         }
         autoArmTimer?.invalidate()
         autoArmTimer = nil
@@ -378,8 +381,7 @@ extension AlarmStateManager: SleepMonitorDelegate {
         Task { @MainActor in
             // Auto-disarm if trusted device is nearby on wake
             if self.bluetoothManager.isTrustedDeviceNearby() {
-                ActivityLogManager.shared.log(.bluetooth, "System woke - trusted device nearby, auto-disarming")
-                self.disarm()
+                self.disarm(reason: "Disarmed on wake - trusted device nearby")
             } else {
                 ActivityLogManager.shared.log(.system, "System woke from sleep")
             }
@@ -411,13 +413,25 @@ extension AlarmStateManager: PowerMonitorDelegate {
 extension AlarmStateManager: BluetoothProximityDelegate {
     nonisolated func trustedDeviceNearby(_ device: TrustedDevice) {
         Task { @MainActor in
-            // Cancel pending auto-arm
-            self.cancelAutoArmTimer()
+            // Cancel pending auto-arm (always, regardless of mode)
+            self.cancelAutoArmTimer(reason: "Auto-arm cancelled - '\(device.name)' detected nearby")
 
-            // Auto-disarm if armed, triggered, or alarming
-            if self.state == .armed || self.state == .triggered || self.state == .alarming {
-                ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(device.name)' detected - auto-disarming")
-                self.disarm()
+            // Auto-disarm logic depends on mode
+            guard self.state == .armed || self.state == .triggered || self.state == .alarming else { return }
+
+            // In "any device away" mode: only disarm when ALL devices are nearby
+            // In "all devices away" mode: disarm when ANY device returns
+            if AppSettings.shared.autoArmMode == .anyDeviceAway {
+                // Check if ALL trusted devices are now nearby
+                let allNearby = self.bluetoothManager.trustedDevices.allSatisfy { device in
+                    self.bluetoothManager.isNearby(device)
+                }
+                if allNearby {
+                    self.disarm(reason: "Disarmed - all trusted devices returned")
+                }
+            } else {
+                // "All devices away" mode: any device returning disarms
+                self.disarm(reason: "Disarmed via trusted device '\(device.name)'")
             }
         }
     }
