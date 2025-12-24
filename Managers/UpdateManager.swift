@@ -28,9 +28,14 @@ final class UpdateManager: ObservableObject {
             .assign(to: &$canCheckForUpdates)
     }
 
-    /// Trigger manual update check (user-initiated)
+    /// Trigger manual update check (user-initiated, shows dialog even if no update)
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
+    }
+
+    /// Silent background update check (only shows UI if update available)
+    func checkForUpdatesInBackground() {
+        updaterController.updater.checkForUpdatesInBackground()
     }
 
     /// Access to underlying updater for advanced usage
