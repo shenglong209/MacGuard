@@ -76,7 +76,8 @@ jobs:
           esac
 
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-          BUILD_NUM="${NEW_VERSION//./}"
+          # Build number: MAJOR*1000 + MINOR*100 + PATCH (ensures 2.0.0=2000 > 1.3.26=1326)
+          BUILD_NUM=$((MAJOR * 1000 + MINOR * 100 + PATCH))
 
           echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -285,7 +286,9 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title || 'Manual release' }}
           PR_BODY: ${{ github.event.pull_request.body || '' }}
         run: |
-          BUILD_NUM="${VERSION//./}"
+          # Parse version components for build number
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          BUILD_NUM=$((MAJOR * 1000 + MINOR * 100 + PATCH))
           PUB_DATE=$(LC_TIME=C date "+%a, %d %b %Y %H:%M:%S %z")
 
           # Build changelog from PR info
