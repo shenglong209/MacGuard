@@ -25,9 +25,9 @@ struct MenuBarView: View {
                 .padding(.horizontal, Theme.Spacing.sm)
                 .padding(.vertical, Theme.Spacing.md)
 
-            // Trusted device section
-            if let device = alarmManager.bluetoothManager.trustedDevice {
-                deviceSection(device)
+            // Trusted devices section
+            if !alarmManager.bluetoothManager.trustedDevices.isEmpty {
+                devicesSection
                 Divider()
                     .padding(.horizontal, Theme.Spacing.sm)
                     .padding(.vertical, Theme.Spacing.md)
@@ -80,36 +80,45 @@ struct MenuBarView: View {
         }
     }
 
-    private func deviceSection(_ device: TrustedDevice) -> some View {
-        let isNearby = alarmManager.bluetoothManager.isDeviceNearby
-        return HStack(spacing: Theme.Spacing.md) {
-            ZStack {
-                GlassIconCircle(size: 32, material: .selection)
-                Image(systemName: device.icon)
-                    .font(.system(size: 14))
-                    .foregroundStyle(isNearby ? Theme.StateColor.armed : .secondary)
-            }
+    // MARK: - Devices Section
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(device.name)
-                    .font(.subheadline.weight(.medium))
-                Text(isNearby ? "Nearby" : "Not detected")
-                    .font(.caption)
-                    .foregroundStyle(isNearby ? Theme.StateColor.armed : .secondary)
+    private var devicesSection: some View {
+        VStack(spacing: Theme.Spacing.xs) {
+            ForEach(alarmManager.bluetoothManager.trustedDevices) { device in
+                deviceRow(device)
             }
+        }
+    }
+
+    private func deviceRow(_ device: TrustedDevice) -> some View {
+        let isNearby = alarmManager.bluetoothManager.isNearby(device)
+        return HStack(spacing: Theme.Spacing.sm) {
+            // Device icon
+            Image(systemName: device.icon)
+                .font(.system(size: 12))
+                .foregroundStyle(isNearby ? Theme.StateColor.armed : .secondary)
+                .frame(width: 16)
+
+            // Device name (truncated if long)
+            Text(device.name)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
             Spacer()
 
+            // Status indicator
             if isNearby {
                 Circle()
                     .fill(Theme.StateColor.armed)
-                    .frame(width: 8, height: 8)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Theme.StateColor.armed.opacity(0.3), lineWidth: 1)
-                    )
+                    .frame(width: 6, height: 6)
+            } else {
+                Circle()
+                    .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1)
+                    .frame(width: 6, height: 6)
             }
         }
+        .padding(.vertical, 2)
     }
 
     private var actionsSection: some View {

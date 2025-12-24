@@ -417,6 +417,11 @@ class BluetoothProximityManager: NSObject, ObservableObject {
         isDeviceNearby
     }
 
+    /// Check if a specific device is nearby
+    func isNearby(_ device: TrustedDevice) -> Bool {
+        deviceProximityStates[device.id] ?? false
+    }
+
     /// Get connection status for a specific device
     func connectionStatus(for device: TrustedDevice) -> DeviceConnectionStatus {
         if device.isClassicBluetooth {
