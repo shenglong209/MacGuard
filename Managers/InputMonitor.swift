@@ -23,6 +23,14 @@ class InputMonitor {
     private var lastEventTime: Date = .distantPast
     private let debounceInterval: TimeInterval = 0.5
 
+    // MARK: - Logging Helper
+
+    private func log(_ category: ActivityLogCategory, _ message: String) {
+        Task { @MainActor in
+            ActivityLogManager.shared.log(category, message)
+        }
+    }
+
     // Event types to monitor
     private static let eventMask: CGEventMask = {
         let types: [CGEventType] = [
@@ -101,7 +109,7 @@ class InputMonitor {
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            print("[InputMonitor] Failed to create event tap - check Accessibility permissions")
+            log(.input, "Failed to create event tap - check Accessibility permissions")
             return false
         }
 
@@ -115,7 +123,7 @@ class InputMonitor {
         CGEvent.tapEnable(tap: tap, enable: true)
         isMonitoring = true
 
-        print("[InputMonitor] Started monitoring input events")
+        log(.input, "Started monitoring input events")
         return true
     }
 
@@ -135,7 +143,7 @@ class InputMonitor {
         runLoopSource = nil
         isMonitoring = false
 
-        print("[InputMonitor] Stopped monitoring input events")
+        log(.input, "Stopped monitoring input events")
     }
 
     deinit {

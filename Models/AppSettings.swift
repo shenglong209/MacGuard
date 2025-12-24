@@ -9,24 +9,29 @@ enum ProximityDistance: String, CaseIterable, Identifiable {
     case near = "Near"      // ~1-2m
     case medium = "Medium"  // ~3-5m (default)
     case far = "Far"        // ~7-10m
+    case custom = "Custom"  // User-defined
 
     var id: String { rawValue }
 
     /// RSSI threshold for device presence (signal stronger than this = nearby)
+    /// For custom, returns a default - actual value comes from AppSettings
     var presentThreshold: Int {
         switch self {
-        case .near: return -55
+        case .near: return -60
         case .medium: return -70
         case .far: return -80
+        case .custom: return -70  // Default, overridden by AppSettings
         }
     }
 
     /// RSSI threshold for device away (signal weaker than this = away)
+    /// For custom, returns a default - actual value comes from AppSettings
     var awayThreshold: Int {
         switch self {
-        case .near: return -65
+        case .near: return -70
         case .medium: return -80
-        case .far: return -90
+        case .far: return -95
+        case .custom: return -80  // Default, overridden by AppSettings
         }
     }
 
@@ -36,7 +41,13 @@ enum ProximityDistance: String, CaseIterable, Identifiable {
         case .near: return "~1-2 meters"
         case .medium: return "~3-5 meters"
         case .far: return "~7-10 meters"
+        case .custom: return "User-defined"
         }
+    }
+
+    /// Presets only (excludes custom for picker display)
+    static var presets: [ProximityDistance] {
+        [.near, .medium, .far]
     }
 }
 
@@ -117,6 +128,14 @@ enum AlarmSound: String, CaseIterable, Identifiable {
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
+    // MARK: - Logging Helper
+
+    private func log(_ category: ActivityLogCategory, _ message: String) {
+        Task { @MainActor in
+            ActivityLogManager.shared.log(category, message)
+        }
+    }
+
     // MARK: - Published Settings
 
     @AppStorage("autoLockOnArm") var autoLockOnArm: Bool = false
@@ -126,6 +145,7 @@ class AppSettings: ObservableObject {
     @AppStorage("countdownDuration") var countdownDuration: Int = 3
     @AppStorage("lidCloseProtection") private var _lidCloseProtection: Bool = false
     @AppStorage("proximityDistance") private var proximityDistanceRaw: String = ProximityDistance.medium.rawValue
+    @AppStorage("customDetectionRange") var customDetectionRange: Int = -65  // Single value, hysteresis auto-calculated
     @AppStorage("autoArmOnDeviceLeave") var autoArmOnDeviceLeave: Bool = false
     @AppStorage("autoArmGracePeriod") var autoArmGracePeriod: Int = 15
     @AppStorage("autoArmMode") private var autoArmModeRaw: String = AutoArmMode.allDevicesAway.rawValue
@@ -146,6 +166,24 @@ class AppSettings: ObservableObject {
             proximityDistanceRaw = newValue.rawValue
             objectWillChange.send()
         }
+    }
+
+    /// Effective present threshold (considers custom setting)
+    /// Hysteresis: nearby threshold is 5 dBm stronger than the detection range
+    var effectivePresentThreshold: Int {
+        if proximityDistance == .custom {
+            return customDetectionRange + 5  // Stronger signal = nearby
+        }
+        return proximityDistance.presentThreshold
+    }
+
+    /// Effective away threshold (considers custom setting)
+    /// Hysteresis: away threshold is 5 dBm weaker than the detection range
+    var effectiveAwayThreshold: Int {
+        if proximityDistance == .custom {
+            return customDetectionRange - 5  // Weaker signal = away
+        }
+        return proximityDistance.awayThreshold
     }
 
     /// Lid close protection with pmset control
@@ -178,10 +216,10 @@ class AppSettings: ObservableObject {
         if let scriptObject = NSAppleScript(source: script) {
             scriptObject.executeAndReturnError(&error)
             if error == nil {
-                print("[Settings] disablesleep enabled")
+                log(.system, "disablesleep enabled")
                 return true
             } else {
-                print("[Settings] Failed to enable disablesleep: \(error ?? [:])")
+                log(.system, "Failed to enable disablesleep: \(error ?? [:])")
             }
         }
         return false
@@ -197,11 +235,30 @@ class AppSettings: ObservableObject {
         if let scriptObject = NSAppleScript(source: script) {
             scriptObject.executeAndReturnError(&error)
             if error == nil {
-                print("[Settings] disablesleep disabled")
+                log(.system, "disablesleep disabled")
             } else {
-                print("[Settings] Failed to disable disablesleep: \(error ?? [:])")
+                log(.system, "Failed to disable disablesleep: \(error ?? [:])")
             }
         }
+    }
+
+    /// Reset lid close protection on app exit (no admin prompt, silent)
+    func resetLidCloseProtection() {
+        guard _lidCloseProtection else { return }
+
+        // Use silent reset without admin prompt (best effort)
+        let script = """
+        do shell script "pmset -a disablesleep 0" with administrator privileges
+        """
+
+        var error: NSDictionary?
+        if let scriptObject = NSAppleScript(source: script) {
+            scriptObject.executeAndReturnError(&error)
+            if error == nil {
+                log(.system, "disablesleep reset on app exit")
+            }
+        }
+        _lidCloseProtection = false
     }
 
     /// Selected alarm sound

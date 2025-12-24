@@ -37,13 +37,13 @@ class CountdownWindowController {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
 
-        print("[Overlay] Countdown overlay shown")
+        Task { @MainActor in ActivityLogManager.shared.log(.system, "Countdown overlay shown") }
     }
 
     /// Hide the overlay (does not destroy window)
     func hide() {
         window?.orderOut(nil)
-        print("[Overlay] Countdown overlay hidden")
+        Task { @MainActor in ActivityLogManager.shared.log(.system, "Countdown overlay hidden") }
     }
 
     private func createWindow() {

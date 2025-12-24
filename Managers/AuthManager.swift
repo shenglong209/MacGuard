@@ -17,6 +17,14 @@ class AuthManager: ObservableObject {
     private let keychainService = "com.shenglong.macguard"
     private let keychainAccount = "userPIN"
 
+    // MARK: - Logging Helper
+
+    private func log(_ category: ActivityLogCategory, _ message: String) {
+        Task { @MainActor in
+            ActivityLogManager.shared.log(category, message)
+        }
+    }
+
     // MARK: - Initialization
 
     init() {
@@ -33,7 +41,7 @@ class AuthManager: ObservableObject {
         hasBiometrics = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
 
         if let error = error {
-            print("[Auth] Biometrics not available: \(error.localizedDescription)")
+            log(.system, "Biometrics not available: \(error.localizedDescription)")
         }
     }
 
@@ -88,9 +96,9 @@ class AuthManager: ObservableObject {
         hasPIN = status == errSecSuccess
 
         if hasPIN {
-            print("[Auth] PIN saved to Keychain")
+            log(.system, "PIN saved to Keychain")
         } else {
-            print("[Auth] Failed to save PIN: \(status)")
+            log(.system, "Failed to save PIN: \(status)")
         }
 
         return hasPIN
@@ -137,7 +145,7 @@ class AuthManager: ObservableObject {
         let status = SecItemDelete(query as CFDictionary)
         if status == errSecSuccess || status == errSecItemNotFound {
             hasPIN = false
-            print("[Auth] PIN deleted from Keychain")
+            log(.system, "PIN deleted from Keychain")
             return true
         }
         return false

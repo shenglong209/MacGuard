@@ -95,11 +95,11 @@ struct SettingsView: View {
                     Label("Startup", systemImage: "power")
                 }
 
-                // Activity Log Section
+                // Event Log Section
                 Section {
                     activityLogSection
                 } header: {
-                    Label("Activity Log", systemImage: "list.bullet.rectangle")
+                    Label("Event Log", systemImage: "list.bullet.rectangle")
                 }
 
                 // About Section
@@ -234,7 +234,7 @@ struct SettingsView: View {
 
     private func simpleTrustedDeviceRow(_ device: TrustedDevice) -> some View {
         let connectionStatus = alarmManager.bluetoothManager.connectionStatus(for: device)
-        let isNearby = device.lastRSSI.map { $0 >= AppSettings.shared.proximityDistance.awayThreshold } ?? false
+        let isNearby = device.lastRSSI.map { $0 >= AppSettings.shared.effectiveAwayThreshold } ?? false
 
         return HStack(spacing: Theme.Spacing.md) {
             Image(systemName: device.icon)
@@ -413,7 +413,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Activity Log Section
+    // MARK: - Event Log Section
 
     @ViewBuilder
     private var activityLogSection: some View {
@@ -766,7 +766,7 @@ enum LaunchAtLoginManager {
                     try SMAppService.mainApp.unregister()
                 }
             } catch {
-                print("[LaunchAtLogin] Failed to update: \(error)")
+                Task { @MainActor in ActivityLogManager.shared.log(.system, "Failed to update launch at login: \(error)") }
             }
         }
     }

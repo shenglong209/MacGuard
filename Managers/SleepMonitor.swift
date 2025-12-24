@@ -28,6 +28,14 @@ class SleepMonitor {
     private var lidStateTimer: Timer?
     private var lastLidClosed = false
 
+    // MARK: - Logging Helper
+
+    private func log(_ category: ActivityLogCategory, _ message: String) {
+        Task { @MainActor in
+            ActivityLogManager.shared.log(category, message)
+        }
+    }
+
     // MARK: - Monitoring
 
     /// Start monitoring sleep/wake events and prevent sleep while armed
@@ -57,7 +65,7 @@ class SleepMonitor {
         )
 
         isMonitoring = true
-        print("[SleepMonitor] Started monitoring sleep events")
+        log(.system, "Started monitoring sleep events")
     }
 
     /// Stop monitoring sleep/wake events
@@ -69,7 +77,7 @@ class SleepMonitor {
         allowSleep()
 
         isMonitoring = false
-        print("[SleepMonitor] Stopped monitoring sleep events")
+        log(.system, "Stopped monitoring sleep events")
     }
 
     // MARK: - Lid State Monitoring (IOKit)
@@ -78,7 +86,7 @@ class SleepMonitor {
     private func startLidStateMonitoring() {
         // Get initial state
         lastLidClosed = isLidClosed()
-        print("[SleepMonitor] Lid state monitoring started (closed: \(lastLidClosed))")
+        log(.system, "Lid state monitoring started (closed: \(lastLidClosed))")
 
         // Poll every 1.0 second for lid state changes (reduced from 0.5s to lower CPU)
         // 1.0s is still responsive for physical lid close action
@@ -99,11 +107,11 @@ class SleepMonitor {
 
         if currentClosed && !lastLidClosed {
             // Lid just closed
-            print("[SleepMonitor] Lid closed detected (IOKit)")
+            log(.system, "Lid closed detected (IOKit)")
             delegate?.lidWillClose()
         } else if !currentClosed && lastLidClosed {
             // Lid just opened
-            print("[SleepMonitor] Lid opened detected (IOKit)")
+            log(.system, "Lid opened detected (IOKit)")
             delegate?.systemDidWake()
         }
 
@@ -138,14 +146,14 @@ class SleepMonitor {
     // MARK: - Event Handlers
 
     @objc private func willSleep(_ notification: Notification) {
-        print("[SleepMonitor] Lid closing / sleep initiated")
+        log(.system, "Lid closing / sleep initiated")
         // Note: caffeinate already running from startMonitoring()
         // Notify delegate immediately
         delegate?.lidWillClose()
     }
 
     @objc private func didWake(_ notification: Notification) {
-        print("[SleepMonitor] System woke from sleep")
+        log(.system, "System woke from sleep")
 
         allowSleep()
         delegate?.systemDidWake()
@@ -173,7 +181,7 @@ class SleepMonitor {
 
         if sleepSuccess == kIOReturnSuccess {
             sleepAssertionID = sleepID
-            print("[SleepMonitor] System sleep prevented (IOPMAssertion)")
+            log(.system, "System sleep prevented (IOPMAssertion)")
         }
 
         // 3. Prevent display sleep
@@ -187,11 +195,11 @@ class SleepMonitor {
 
         if displaySuccess == kIOReturnSuccess {
             displayAssertionID = displayID
-            print("[SleepMonitor] Display sleep prevented")
+            log(.system, "Display sleep prevented")
         }
 
         isDelayingSleep = true
-        print("[SleepMonitor] Sleep prevention active while armed")
+        log(.system, "Sleep prevention active while armed")
     }
 
     /// Start caffeinate process to prevent sleep (runs until terminated)
@@ -207,9 +215,9 @@ class SleepMonitor {
         do {
             try process.run()
             caffeinateProcess = process
-            print("[SleepMonitor] Caffeinate started (preventing sleep while armed)")
+            log(.system, "Caffeinate started (preventing sleep while armed)")
         } catch {
-            print("[SleepMonitor] Failed to start caffeinate: \(error)")
+            log(.system, "Failed to start caffeinate: \(error)")
         }
     }
 
@@ -217,7 +225,7 @@ class SleepMonitor {
     private func stopCaffeinate() {
         if let process = caffeinateProcess, process.isRunning {
             process.terminate()
-            print("[SleepMonitor] Caffeinate stopped")
+            log(.system, "Caffeinate stopped")
         }
         caffeinateProcess = nil
     }
@@ -239,7 +247,7 @@ class SleepMonitor {
         }
 
         isDelayingSleep = false
-        print("[SleepMonitor] Sleep allowed")
+        log(.system, "Sleep allowed")
     }
 
     deinit {
