@@ -201,10 +201,10 @@ struct TrustedDevicesConfigContainerView: View {
 
                     // Type badge
                     Text(device.isClassicBluetooth ? "Classic" : "BLE")
-                        .font(.caption2)
+                        .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
                         .background(device.isClassicBluetooth ? Color.orange : Color.blue)
                         .clipShape(Capsule())
                 }
