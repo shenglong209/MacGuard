@@ -4,18 +4,29 @@
 
 import SwiftUI
 
+/// App delegate to handle app lifecycle events
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        // Reset lid close protection on app exit to restore normal sleep behavior
+        if AppSettings.shared.lidCloseProtection {
+            AppSettings.shared.resetLidCloseProtection()
+        }
+    }
+}
+
 /// Main entry point for MacGuard menu bar application
 @main
 struct MacGuardApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var alarmManager = AlarmStateManager()
 
     // Initialize update manager (starts Sparkle auto-update)
     private let updateManager = UpdateManager.shared
 
     init() {
-        // Check for updates on app launch (background, non-intrusive)
+        // Check for updates on app launch (silent - only shows UI if update available)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            UpdateManager.shared.checkForUpdates()
+            UpdateManager.shared.checkForUpdatesInBackground()
         }
     }
 
