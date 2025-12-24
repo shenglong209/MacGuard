@@ -423,12 +423,13 @@ struct DeviceRowButton: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
-                            Image(systemName: device.isClassicBluetooth ? "antenna.radiowaves.left.and.right" : "wave.3.right")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(device.isClassicBluetooth ? "Classic BT" : "BLE")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text(device.isClassicBluetooth ? "Classic" : "BLE")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(device.isClassicBluetooth ? Color.orange : Color.blue)
+                                .clipShape(Capsule())
                         }
                     }
                 }
