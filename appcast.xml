@@ -8,7 +8,7 @@
     <item>
       <title>Version 2.0.1</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.1</link>
-      <sparkle:version>201</sparkle:version>
+      <sparkle:version>2001</sparkle:version>
       <sparkle:shortVersionString>2.0.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
@@ -26,7 +26,7 @@
     <item>
       <title>Version 2.0.0</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.0</link>
-      <sparkle:version>200</sparkle:version>
+      <sparkle:version>2000</sparkle:version>
       <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
