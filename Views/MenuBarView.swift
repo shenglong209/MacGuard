@@ -7,6 +7,15 @@ import SwiftUI
 /// Menu bar dropdown content view (window style)
 struct MenuBarView: View {
     @EnvironmentObject var alarmManager: AlarmStateManager
+    @Environment(\.openWindow) private var openWindow
+
+    /// Dismiss the menu bar dropdown
+    private func dismissMenu() {
+        // Close the MenuBarExtra window by deactivating the app
+        if let window = NSApp.windows.first(where: { $0.title.isEmpty && $0.isVisible }) {
+            window.orderOut(nil)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -124,6 +133,7 @@ struct MenuBarView: View {
     private var actionsSection: some View {
         VStack(spacing: Theme.Spacing.xs) {
             Button {
+                dismissMenu()
                 SettingsWindowController.shared.show(alarmManager: alarmManager)
             } label: {
                 HStack {
