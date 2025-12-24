@@ -50,16 +50,19 @@ struct SettingsView: View {
                         }
                     }
 
-                    // Configure button
-                    Button {
-                        TrustedDevicesConfigWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
-                    } label: {
-                        Label(
-                            alarmManager.bluetoothManager.trustedDevices.isEmpty ? "Add Devices" : "Manage Devices",
-                            systemImage: alarmManager.bluetoothManager.trustedDevices.isEmpty ? "plus.circle" : "gearshape"
-                        )
+                    // Configure button (right-aligned)
+                    HStack {
+                        Spacer()
+                        Button {
+                            TrustedDevicesConfigWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
+                        } label: {
+                            Label(
+                                alarmManager.bluetoothManager.trustedDevices.isEmpty ? "Add Devices" : "Manage Devices",
+                                systemImage: alarmManager.bluetoothManager.trustedDevices.isEmpty ? "plus.circle" : "gearshape"
+                            )
+                        }
+                        .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
                     }
-                    .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
                 } header: {
                     HStack {
                         Label("Trusted Devices", systemImage: "iphone")
