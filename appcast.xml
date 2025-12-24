@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.3</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.3</link>
+      <sparkle:version>2003</sparkle:version>
+      <sparkle:shortVersionString>2.0.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 2.0.3</h3>
+        <ul><li>**IOBluetoothDeviceInquiry integration**: Active scanning provides fresh RSSI values instead of cached/stale data</li><li>**RSSI unavailable fallback**: Uses -50 dBm (conservative nearby) when connected but RSSI unavailable after 1s timeout</li><li>**RSSI-based proximity debounce**: 3-second debounce prevents flapping on momentary signal drops</li><li>**Armed state optimization**: 500ms polling when armed (vs 1000ms normal) for faster detection</li><li>**Fixes 7-second delay bug**: Auto-disarm now triggers within 1-2 seconds when trusted device returns</li><li>**Persistent logs**: Saved to `~/Library/Application Support/MacGuard/activity-log.json`</li><li>**Export/Share**: Export logs as JSON file for debugging</li><li>**Category filtering**: Filter by Bluetooth, Input, Power, Alarm, System, Settings</li><li>**Unified logging**: All managers now use ActivityLogManager instead of print()</li><li>**Custom detection range**: Slider for user-defined RSSI threshold with auto-calculated hysteresis</li><li>**Updated presets**: Near (-60/-70 dBm), Medium (-70/-80 dBm), Far (-80/-95 dBm)</li><li>**Device type display**: Shows BLE vs Classic Bluetooth in device list</li></ul>
+      ]]></description>
+      <pubDate>Wed, 24 Dec 2025 16:48:05 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v2.0.3/MacGuard-2.0.3.dmg"
+        sparkle:edSignature="EvIpnndXEIhEyjkqVjEnGFCk3m6V6yq3ZZIuzaiyrF7IWA/4QMnlbYpxt4UZBSoDX6I9u1PqAkw0dQKtdGkuDg=="
+        length="6978963"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 2.0.2</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.2</link>
       <sparkle:version>2002</sparkle:version>
