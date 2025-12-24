@@ -392,7 +392,7 @@ enum AlarmState {
 ```swift
 @AppStorage("selectedSound") var selectedSound: String = "dont-touch-my-mac.mp3"
 @AppStorage("alarmVolume") var alarmVolume: Double = 1.0
-@AppStorage("autoLockEnabled") var autoLockEnabled: Bool = true
+@AppStorage("autoLockEnabled") var autoLockEnabled: Bool = false
 @AppStorage("lidCloseAlarmEnabled") var lidCloseAlarmEnabled: Bool = false
 @AppStorage("trustedDeviceUUID") var trustedDeviceUUID: String?
 @AppStorage("launchAtLogin") var launchAtLogin: Bool = false

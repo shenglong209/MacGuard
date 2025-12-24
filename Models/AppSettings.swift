@@ -119,7 +119,7 @@ class AppSettings: ObservableObject {
 
     // MARK: - Published Settings
 
-    @AppStorage("autoLockOnArm") var autoLockOnArm: Bool = true
+    @AppStorage("autoLockOnArm") var autoLockOnArm: Bool = false
     @AppStorage("alarmSound") private var alarmSoundRaw: String = AlarmSound.dontTouchMyMac.rawValue
     @AppStorage("alarmVolume") var alarmVolume: Double = 1.0
     @AppStorage("customSoundPath") var customSoundPath: String = ""
