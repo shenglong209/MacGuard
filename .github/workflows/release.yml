@@ -19,11 +19,15 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   auto-release:
-    # Run if PR was merged OR manually triggered
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    # Run if PR was merged (not release:skip label) OR manually triggered
+    if: |
+      (github.event.pull_request.merged == true &&
+       !contains(github.event.pull_request.labels.*.name, 'release:skip')) ||
+      github.event_name == 'workflow_dispatch'
     runs-on: macos-14
 
     steps:
@@ -361,10 +365,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit version bump and appcast
+      - name: Create version bump PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.new }}
         run: |
+          # Create a new branch for the version bump
+          BRANCH_NAME="chore/release-v${VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH_NAME"
           git add Info.plist appcast.xml
-          git commit -m "chore: release v${{ steps.version.outputs.new }}"
-          git push
+          git commit -m "chore: release v${VERSION}"
+          git push origin "$BRANCH_NAME"
+
+          # Create PR and auto-merge
+          gh pr create \
+            --title "chore: release v${VERSION}" \
+            --body "Automated version bump and appcast update for v${VERSION}." \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --label "release:skip"
+
+          # Auto-merge the PR (requires merge without review for bot PRs)
+          gh pr merge "$BRANCH_NAME" --squash --delete-branch --auto
