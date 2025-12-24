@@ -4,6 +4,7 @@
 
 import AVFoundation
 import Cocoa
+import CoreAudio
 
 /// Manages alarm audio playback at maximum volume
 class AlarmAudioManager: ObservableObject {
@@ -11,6 +12,9 @@ class AlarmAudioManager: ObservableObject {
 
     private var audioPlayer: AVAudioPlayer?
     private var originalVolume: Float = 0.5
+    private var originalOutputDeviceID: AudioDeviceID = 0
+    private var builtInSpeakerID: AudioDeviceID = 0
+    private var shouldRestoreOutputDevice = false
     private var beepTimer: Timer?
     private var volumeEnforcementTimer: Timer?
     private var isPrepared = false
@@ -56,6 +60,9 @@ class AlarmAudioManager: ObservableObject {
 
         let settings = AppSettings.shared
 
+        // Switch to built-in speaker (before volume changes)
+        switchToBuiltInSpeaker()
+
         // Save original volume
         saveOriginalVolume()
 
@@ -100,6 +107,9 @@ class AlarmAudioManager: ObservableObject {
 
         // Restore original volume
         setSystemVolume(originalVolume)
+
+        // Restore original output device
+        restoreOutputDevice()
 
         print("[Alarm] Alarm stopped")
     }
@@ -185,6 +195,166 @@ class AlarmAudioManager: ObservableObject {
     private func unmuteSpeaker() {
         let script = "set volume without output muted"
         runAppleScript(script)
+    }
+
+    // MARK: - Audio Output Device Control
+
+    /// Save current output device and switch to built-in speaker
+    private func switchToBuiltInSpeaker() {
+        // Save current output device
+        originalOutputDeviceID = getDefaultOutputDevice()
+
+        // Find built-in speaker
+        builtInSpeakerID = findBuiltInSpeaker()
+
+        if builtInSpeakerID != 0 && builtInSpeakerID != originalOutputDeviceID {
+            setDefaultOutputDevice(builtInSpeakerID)
+            shouldRestoreOutputDevice = true
+            print("[Alarm] Switched from device \(originalOutputDeviceID) to built-in speaker \(builtInSpeakerID)")
+        } else if builtInSpeakerID == originalOutputDeviceID {
+            print("[Alarm] Already using built-in speaker")
+            shouldRestoreOutputDevice = false
+        } else {
+            print("[Alarm] Could not find built-in speaker, using current device")
+            shouldRestoreOutputDevice = false
+        }
+    }
+
+    /// Restore original output device
+    private func restoreOutputDevice() {
+        guard shouldRestoreOutputDevice, originalOutputDeviceID != 0 else { return }
+        setDefaultOutputDevice(originalOutputDeviceID)
+        print("[Alarm] Restored output device to \(originalOutputDeviceID)")
+        shouldRestoreOutputDevice = false
+    }
+
+    /// Get current default output device
+    private func getDefaultOutputDevice() -> AudioDeviceID {
+        var deviceID = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &size,
+            &deviceID
+        )
+
+        if status != noErr {
+            print("[Alarm] Failed to get default output device: \(status)")
+        }
+        return deviceID
+    }
+
+    /// Set default output device
+    private func setDefaultOutputDevice(_ deviceID: AudioDeviceID) {
+        var mutableDeviceID = deviceID
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        let status = AudioObjectSetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            UInt32(MemoryLayout<AudioDeviceID>.size),
+            &mutableDeviceID
+        )
+
+        if status != noErr {
+            print("[Alarm] Failed to set output device: \(status)")
+        }
+    }
+
+    /// Find built-in speaker device ID
+    private func findBuiltInSpeaker() -> AudioDeviceID {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        var dataSize: UInt32 = 0
+        var status = AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &dataSize
+        )
+
+        guard status == noErr else {
+            print("[Alarm] Failed to get devices size: \(status)")
+            return 0
+        }
+
+        let deviceCount = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+        var devices = [AudioDeviceID](repeating: 0, count: deviceCount)
+
+        status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &dataSize,
+            &devices
+        )
+
+        guard status == noErr else {
+            print("[Alarm] Failed to get devices: \(status)")
+            return 0
+        }
+
+        // Find the built-in output device
+        for device in devices {
+            if isBuiltInOutputDevice(device) {
+                return device
+            }
+        }
+
+        return 0
+    }
+
+    /// Check if device is built-in output speaker
+    private func isBuiltInOutputDevice(_ deviceID: AudioDeviceID) -> Bool {
+        // Check if device has output streams
+        var streamAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams,
+            mScope: kAudioDevicePropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        var streamSize: UInt32 = 0
+        var status = AudioObjectGetPropertyDataSize(deviceID, &streamAddress, 0, nil, &streamSize)
+        guard status == noErr && streamSize > 0 else { return false }
+
+        // Check transport type (built-in = kAudioDeviceTransportTypeBuiltIn)
+        var transportType: UInt32 = 0
+        var transportSize = UInt32(MemoryLayout<UInt32>.size)
+        var transportAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        status = AudioObjectGetPropertyData(deviceID, &transportAddress, 0, nil, &transportSize, &transportType)
+        guard status == noErr else { return false }
+
+        let isBuiltIn = transportType == kAudioDeviceTransportTypeBuiltIn
+        if isBuiltIn {
+            print("[Alarm] Found built-in speaker: device ID \(deviceID)")
+        }
+        return isBuiltIn
     }
 
     @discardableResult
