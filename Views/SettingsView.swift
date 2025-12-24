@@ -39,34 +39,38 @@ struct SettingsView: View {
                     Label("Permissions", systemImage: "checkmark.shield")
                 }
 
-                // Trusted Device Section
+                // Trusted Devices Section
                 Section {
-                    if let device = alarmManager.bluetoothManager.trustedDevice {
-                        trustedDeviceRow(device)
-
-                        Picker("Detection Distance", selection: $settings.proximityDistance) {
-                            ForEach(ProximityDistance.allCases) { distance in
-                                Text("\(distance.rawValue) (\(distance.description))").tag(distance)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        Toggle("Auto-arm when device leaves", isOn: $settings.autoArmOnDeviceLeave)
-
-                        if settings.autoArmOnDeviceLeave {
-                            Picker("Grace period", selection: $settings.autoArmGracePeriod) {
-                                Text("10 seconds").tag(10)
-                                Text("15 seconds").tag(15)
-                                Text("30 seconds").tag(30)
-                                Text("60 seconds").tag(60)
-                            }
-                            .pickerStyle(.menu)
-                        }
-                    } else {
+                    if alarmManager.bluetoothManager.trustedDevices.isEmpty {
                         noDeviceConfigured
+                    } else {
+                        // Simple device list (read-only summary)
+                        ForEach(alarmManager.bluetoothManager.trustedDevices) { device in
+                            simpleTrustedDeviceRow(device)
+                        }
+                    }
+
+                    // Configure button (right-aligned)
+                    HStack {
+                        Spacer()
+                        Button {
+                            TrustedDevicesConfigWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
+                        } label: {
+                            Label(
+                                alarmManager.bluetoothManager.trustedDevices.isEmpty ? "Add Devices" : "Manage Devices",
+                                systemImage: alarmManager.bluetoothManager.trustedDevices.isEmpty ? "plus.circle" : "gearshape"
+                            )
+                        }
+                        .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
                     }
                 } header: {
-                    Label("Trusted Device", systemImage: "iphone")
+                    HStack {
+                        Label("Trusted Devices", systemImage: "iphone")
+                        if !alarmManager.bluetoothManager.trustedDevices.isEmpty {
+                            Text("(\(alarmManager.bluetoothManager.trustedDevices.count))")
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
 
                 // Security Section
@@ -226,36 +230,41 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Trusted Device Row
+    // MARK: - Simple Trusted Device Row (for Settings summary)
 
-    private func trustedDeviceRow(_ device: TrustedDevice) -> some View {
-        HStack(spacing: Theme.Spacing.md) {
-            ZStack {
-                GlassIconCircle(size: 32, material: .selection)
-                Image(systemName: device.icon)
-                    .font(.title2)
-                    .foregroundColor(Theme.Accent.primary)
-            }
+    private func simpleTrustedDeviceRow(_ device: TrustedDevice) -> some View {
+        let connectionStatus = alarmManager.bluetoothManager.connectionStatus(for: device)
+        let isNearby = device.lastRSSI.map { $0 >= AppSettings.shared.proximityDistance.awayThreshold } ?? false
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(device.name)
-                    .font(.headline)
-                if let rssi = device.lastRSSI {
-                    Text("Signal: \(rssi) dBm")
+        return HStack(spacing: Theme.Spacing.md) {
+            Image(systemName: device.icon)
+                .font(.title3)
+                .foregroundColor(Theme.Accent.primary)
+                .frame(width: 24)
+
+            Text(device.name)
+                .font(.body)
+
+            Spacer()
+
+            // Status indicator
+            HStack(spacing: Theme.Spacing.xs) {
+                if isNearby {
+                    Circle()
+                        .fill(Theme.StateColor.armed)
+                        .frame(width: 8, height: 8)
+                    Text("Nearby")
+                        .font(.caption)
+                        .foregroundColor(Theme.StateColor.armed)
+                } else {
+                    Circle()
+                        .fill(Color.secondary.opacity(0.5))
+                        .frame(width: 8, height: 8)
+                    Text(connectionStatus.label)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            Spacer()
-            if alarmManager.bluetoothManager.isDeviceNearby {
-                Label("Nearby", systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundColor(Theme.StateColor.armed)
-            }
-            Button("Remove") {
-                alarmManager.bluetoothManager.removeTrustedDevice()
-            }
-            .buttonStyle(GlassSecondaryButtonStyle())
         }
     }
 
@@ -263,14 +272,11 @@ struct SettingsView: View {
 
     private var noDeviceConfigured: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text("No trusted device configured")
+            Text("No trusted devices configured")
                 .foregroundColor(.secondary)
-            Button {
-                DeviceScannerWindowController.shared.show(bluetoothManager: alarmManager.bluetoothManager)
-            } label: {
-                Label("Scan for Devices", systemImage: "wave.3.right")
-            }
-            .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
+            Text("Add a device to enable proximity features")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
     }
 

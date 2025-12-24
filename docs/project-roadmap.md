@@ -1,7 +1,7 @@
 # MacGuard Project Roadmap
 
-**Version:** 1.3.4 (Build 2)
-**Last Updated:** 2025-12-19
+**Version:** 1.4.0
+**Last Updated:** 2025-12-24
 **Status:** Production Release
 
 ## Completed Milestones
@@ -93,17 +93,17 @@
 
 ---
 
-### v1.3.4 - Current Release
-**Status:** ✅ Complete (2025-12-19)
+### v1.3.4 - Documentation Release
+**Status:** Complete (2025-12-19)
 
 **Features Delivered:**
-- ✅ Comprehensive documentation in `docs/` directory
-- ✅ `docs/project-overview-pdr.md` - Product Development Requirements
-- ✅ `docs/codebase-summary.md` - Technical summary
-- ✅ `docs/code-standards.md` - Coding standards
-- ✅ `docs/system-architecture.md` - Architecture details
-- ✅ `docs/project-roadmap.md` - This document
-- ✅ `docs/deployment-guide.md` - Build and release process
+- Comprehensive documentation in `docs/` directory
+- `docs/project-overview-pdr.md` - Product Development Requirements
+- `docs/codebase-summary.md` - Technical summary
+- `docs/code-standards.md` - Coding standards
+- `docs/system-architecture.md` - Architecture details
+- `docs/project-roadmap.md` - This document
+- `docs/deployment-guide.md` - Build and release process
 
 **Documentation Improvements:**
 - Detailed architecture diagrams
@@ -112,6 +112,32 @@
 - Security model documentation
 - Performance metrics
 - Build and deployment instructions
+
+---
+
+### v1.4.0 - Multiple Trusted Devices
+**Status:** Complete (2025-12-24)
+
+**Features Delivered:**
+- Support for up to 10 trusted Bluetooth devices
+- Auto-disarm when ANY trusted device enters proximity
+- Auto-arm when ALL trusted devices leave proximity
+- Device list UI with add/remove functionality
+- Legacy single-device data auto-migration
+- Updated delegate protocol with `allTrustedDevicesAway()`
+- Per-device proximity state tracking
+
+**Technical Achievements:**
+- Array-based device storage (JSON encoded in UserDefaults)
+- Hysteresis logic for RSSI thresholds (present vs away)
+- Efficient multi-device scanning with connection management
+- Backward-compatible API (`trustedDevice` property returns first device)
+
+**Files Changed:**
+- `BluetoothProximityManager.swift` - Array storage, multi-device tracking
+- `AlarmStateManager.swift` - Updated delegate handling
+- `SettingsView.swift` - Device list with add/remove UI
+- `DeviceScannerView.swift` - Add mode instead of replace
 
 ---
 
@@ -250,8 +276,8 @@ Unsigned apps require right-click → Open on first launch due to macOS Gatekeep
 
 ## Upcoming Milestones
 
-### v1.4.0 - Quality & Reliability
-**Status:** 📋 Planned
+### v1.5.0 - Quality & Reliability
+**Status:** Planned
 **Target:** Q1 2025
 
 **Goals:**
@@ -261,11 +287,11 @@ Unsigned apps require right-click → Open on first launch due to macOS Gatekeep
 - Performance profiling and optimization
 
 **Features:**
-- ✅ UpdateManager memory leak fix (P0)
-- ✅ Unit test suite (P1)
-- ✅ CI test automation (run tests on PR)
-- ✅ Memory profiling documentation
-- ✅ Performance benchmarks
+- UpdateManager memory leak fix (P0)
+- Unit test suite (P1)
+- CI test automation (run tests on PR)
+- Memory profiling documentation
+- Performance benchmarks
 
 **Technical Debt:**
 - Refactor SettingsView into smaller components (575 LOC → <300 LOC each)
@@ -281,43 +307,9 @@ Unsigned apps require right-click → Open on first launch due to macOS Gatekeep
 
 ---
 
-### v1.5.0 - Enhanced Bluetooth Features
-**Status:** 📋 Planned
-**Target:** Q2 2025
-
-**Goals:**
-- Support multiple trusted devices
-- Improve proximity detection accuracy
-- Add device-specific RSSI thresholds
-
-**Features:**
-- ✅ Multiple trusted devices (max 5)
-- ✅ Per-device RSSI threshold configuration
-- ✅ Closest device prioritization
-- ✅ Hysteresis logic (sustained proximity)
-- ✅ RSSI averaging (reduce noise)
-- ✅ Device battery level display (if available)
-
-**UI Changes:**
-- Trusted device list (instead of single device)
-- Add/remove devices
-- Per-device settings (threshold, enable/disable)
-
-**Technical Challenges:**
-- CoreBluetooth concurrent scanning for multiple devices
-- Efficient proximity detection for multiple targets
-- UserDefaults storage for device array
-
-**Success Metrics:**
-- <1% false auto-disarm rate
-- <5 second auto-disarm latency
-- User satisfaction survey (positive feedback)
-
----
-
 ### v1.6.0 - Customization & Flexibility
-**Status:** 💡 Idea
-**Target:** Q3 2025
+**Status:** Planned
+**Target:** Q2 2025
 
 **Goals:**
 - Custom countdown duration
@@ -525,6 +517,7 @@ No legacy features planned for removal at this time.
 ### Release History
 | Version | Date | Highlights |
 |---------|------|------------|
+| v1.4.0 | 2025-12-24 | Multiple trusted devices (up to 10) |
 | v1.3.4 | 2025-12-19 | Comprehensive documentation |
 | v1.3.3 | 2024-12-18 | CI/CD automation complete |
 | v1.3.0 | 2024-12-18 | GitHub Actions workflow |

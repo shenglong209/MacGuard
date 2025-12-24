@@ -1,7 +1,7 @@
 # MacGuard System Architecture
 
-**Version:** 1.3.4 (Build 2)
-**Last Updated:** 2025-12-19
+**Version:** 1.4.0
+**Last Updated:** 2025-12-24
 
 ## Overview
 
@@ -172,29 +172,42 @@ Lid Close → IOKit Callback → SleepMonitor → Delegate → AlarmStateManager
 Power Disconnect → IOKit Callback → PowerMonitor → Delegate → AlarmStateManager → triggered
 ```
 
-#### BluetoothProximityManager (250 LOC)
+#### BluetoothProximityManager (~390 LOC)
 **Responsibilities:**
-- Scan for trusted Bluetooth device
-- Monitor RSSI signal strength
-- Auto-disarm when device is nearby (RSSI > -60 dB)
-- Device selection and pairing
+- Manage multiple trusted Bluetooth devices (up to 10)
+- Scan and monitor RSSI signal strength per device
+- Auto-disarm when ANY device is nearby (RSSI > threshold)
+- Auto-arm when ALL devices leave proximity
+- Device selection, addition, and removal
+- Legacy single-device data migration
 
 **Key Technologies:**
 - CoreBluetooth framework
 - CBCentralManager for scanning
-- RSSI-based proximity detection
+- RSSI-based proximity detection with hysteresis
 
 **Proximity Logic:**
 ```swift
-// RSSI threshold: -60 dB (~5-10 meter range)
-var isInProximity: Bool {
-    return rssi > -60
+// ANY device nearby = nearby (for auto-disarm)
+var isDeviceNearby: Bool {
+    deviceProximityStates.values.contains(true)
+}
+
+// ALL devices away = away (for auto-arm)
+var areAllDevicesAway: Bool {
+    guard !trustedDevices.isEmpty else { return false }
+    return deviceProximityStates.values.allSatisfy { !$0 }
 }
 ```
 
 **Auto-Disarm Flow:**
 ```
-Bluetooth Scan → RSSI > -60 → ProximityManager → Delegate → AlarmStateManager → disarm()
+Bluetooth Scan → ANY device RSSI > threshold → ProximityManager → Delegate → AlarmStateManager → disarm()
+```
+
+**Auto-Arm Flow:**
+```
+ALL devices RSSI < threshold → ProximityManager.allTrustedDevicesAway() → Delegate → AlarmStateManager → arm()
 ```
 
 ### 3. Authentication Layer
@@ -482,7 +495,7 @@ UI updates: Menu bar icon changes, button label → "Arm MacGuard"
 ```
 BluetoothProximityManager scans (when armed)
     ↓
-Detect trusted device with RSSI > -60 dB
+Detect ANY trusted device with RSSI > threshold
     ↓
 Delegate calls AlarmStateManager.handleProximityChange(inProximity: true)
     ↓
@@ -491,6 +504,19 @@ AlarmStateManager transitions: armed → idle
 Stop all monitors
     ↓
 UI updates: Status → "Auto-disarmed (Bluetooth proximity)"
+```
+
+### Bluetooth Auto-Arm
+```
+BluetoothProximityManager detects ALL trusted devices away
+    ↓
+Delegate calls AlarmStateManager via allTrustedDevicesAway()
+    ↓
+AlarmStateManager transitions: idle → armed (if auto-arm enabled)
+    ↓
+Start all monitors
+    ↓
+UI updates: Status → "Auto-armed (all devices away)"
 ```
 
 ## Security Architecture
@@ -528,9 +554,10 @@ UI updates: Status → "Granted" (green checkmark)
 | Data | Storage | Encryption | Justification |
 |------|---------|------------|---------------|
 | **PIN** | Keychain | Yes (Keychain default) | Sensitive authentication credential |
-| **Trusted Device UUID** | UserDefaults | No | Non-sensitive identifier |
+| **Trusted Devices** | UserDefaults | No | JSON-encoded array of device UUIDs and names |
 | **App Settings** | UserDefaults | No | Non-sensitive preferences |
 | **Alarm State** | In-Memory | N/A | Transient state |
+| **Proximity States** | In-Memory | N/A | Per-device nearby/away tracking |
 
 ## Performance Characteristics
 
@@ -556,7 +583,7 @@ UI updates: Status → "Granted" (green checkmark)
 
 ### Scalability Constraints
 - **Single instance:** One alarm state per app instance
-- **Single device:** One trusted Bluetooth device (future: multiple devices)
+- **Multiple devices:** Up to 10 trusted Bluetooth devices
 - **Single window:** One countdown overlay (fullscreen, blocks all input)
 
 ## Error Handling
@@ -715,6 +742,6 @@ MacGuardApp
 - Implement health checks for monitors
 
 ### Scalability
-- Support multiple trusted devices
 - Support custom countdown durations
 - Support multiple alarm sounds (playlist)
+- Support alarm profiles (home, office, cafe)

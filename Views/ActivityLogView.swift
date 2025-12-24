@@ -185,12 +185,16 @@ class ActivityLogWindowController: NSObject, NSWindowDelegate {
     static let shared = ActivityLogWindowController()
 
     private var window: NSWindow?
+    private weak var parentWindow: NSWindow?
 
     private override init() {
         super.init()
     }
 
     func show() {
+        // Track parent window for refocus
+        self.parentWindow = NSApp.keyWindow
+
         if window == nil {
             createWindow()
         }
@@ -220,8 +224,19 @@ class ActivityLogWindowController: NSObject, NSWindowDelegate {
         window = newWindow
     }
 
+    private func refocusParent() {
+        if let parent = parentWindow, parent.isVisible {
+            parent.makeKeyAndOrderFront(nil)
+        }
+    }
+
     func windowWillClose(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        refocusParent()
+        // Only revert to accessory if no other windows visible
+        let visibleWindows = NSApp.windows.filter { $0.isVisible && $0 != window }
+        if visibleWindows.isEmpty {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 }
 

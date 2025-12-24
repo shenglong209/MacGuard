@@ -12,6 +12,13 @@ struct MacGuardApp: App {
     // Initialize update manager (starts Sparkle auto-update)
     private let updateManager = UpdateManager.shared
 
+    init() {
+        // Check for updates on app launch (background, non-intrusive)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            UpdateManager.shared.checkForUpdates()
+        }
+    }
+
     var body: some Scene {
         // Menu bar app (no main window)
         MenuBarExtra {

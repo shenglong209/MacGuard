@@ -40,6 +40,30 @@ enum ProximityDistance: String, CaseIterable, Identifiable {
     }
 }
 
+/// Auto-arm trigger mode for multiple trusted devices
+enum AutoArmMode: String, CaseIterable, Identifiable {
+    case allDevicesAway = "all"   // Arm when ALL devices leave (default)
+    case anyDeviceAway = "any"    // Arm when ANY device leaves
+
+    var id: String { rawValue }
+
+    /// Display label for UI
+    var label: String {
+        switch self {
+        case .allDevicesAway: return "All devices leave"
+        case .anyDeviceAway: return "Any device leaves"
+        }
+    }
+
+    /// Short description for UI
+    var description: String {
+        switch self {
+        case .allDevicesAway: return "More flexible - arm only when all trusted devices are away"
+        case .anyDeviceAway: return "More secure - arm when any trusted device leaves"
+        }
+    }
+}
+
 /// Available alarm sounds
 enum AlarmSound: String, CaseIterable, Identifiable {
     // Bundled sound
@@ -104,6 +128,16 @@ class AppSettings: ObservableObject {
     @AppStorage("proximityDistance") private var proximityDistanceRaw: String = ProximityDistance.medium.rawValue
     @AppStorage("autoArmOnDeviceLeave") var autoArmOnDeviceLeave: Bool = false
     @AppStorage("autoArmGracePeriod") var autoArmGracePeriod: Int = 15
+    @AppStorage("autoArmMode") private var autoArmModeRaw: String = AutoArmMode.allDevicesAway.rawValue
+
+    /// Auto-arm trigger mode (all devices away vs any device away)
+    var autoArmMode: AutoArmMode {
+        get { AutoArmMode(rawValue: autoArmModeRaw) ?? .allDevicesAway }
+        set {
+            autoArmModeRaw = newValue.rawValue
+            objectWillChange.send()
+        }
+    }
 
     /// Proximity distance for trusted device detection
     var proximityDistance: ProximityDistance {

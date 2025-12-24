@@ -5,12 +5,19 @@
 import Foundation
 
 /// Represents a trusted Bluetooth device for auto-disarm
+/// Supports both BLE devices (iPhone, Watch) and Classic Bluetooth (AirPods, headphones)
 struct TrustedDevice: Identifiable, Codable, Hashable {
-    /// Unique device identifier (Bluetooth UUID)
+    /// Unique device identifier (Bluetooth UUID for BLE, generated UUID for Classic BT)
     let id: UUID
 
     /// User-friendly device name
     var name: String
+
+    /// Bluetooth address for Classic BT devices (e.g., "AA-BB-CC-DD-EE-FF")
+    var bluetoothAddress: String?
+
+    /// Whether this device uses Classic Bluetooth (vs BLE)
+    var isClassicBluetooth: Bool
 
     /// Last measured RSSI value (signal strength) - runtime only, not persisted
     var lastRSSI: Int?
@@ -18,9 +25,9 @@ struct TrustedDevice: Identifiable, Codable, Hashable {
     /// Last time device was seen - runtime only, not persisted
     var lastSeen: Date?
 
-    // Only persist id and name
+    // Only persist id, name, bluetoothAddress, isClassicBluetooth
     enum CodingKeys: String, CodingKey {
-        case id, name
+        case id, name, bluetoothAddress, isClassicBluetooth
     }
 
     // MARK: - Computed Properties
@@ -38,13 +45,25 @@ struct TrustedDevice: Identifiable, Codable, Hashable {
         if lowered.contains("ipad") { return "ipad" }
         if lowered.contains("mac") { return "laptopcomputer" }
         if lowered.contains("airpods") { return "airpodspro" }
+        if lowered.contains("headphone") || lowered.contains("beats") { return "headphones" }
         return "iphone"
     }
 
     // MARK: - Initialization
 
-    init(id: UUID, name: String) {
+    init(id: UUID, name: String, bluetoothAddress: String? = nil, isClassicBluetooth: Bool = false) {
         self.id = id
         self.name = name
+        self.bluetoothAddress = bluetoothAddress
+        self.isClassicBluetooth = isClassicBluetooth
+    }
+
+    // Custom decoder to handle legacy devices without bluetoothAddress
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        bluetoothAddress = try container.decodeIfPresent(String.self, forKey: .bluetoothAddress)
+        isClassicBluetooth = try container.decodeIfPresent(Bool.self, forKey: .isClassicBluetooth) ?? false
     }
 }

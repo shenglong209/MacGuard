@@ -1,7 +1,7 @@
 # MacGuard - Product Development Requirements
 
-**Version:** 1.3.4 (Build 2)
-**Last Updated:** 2025-12-19
+**Version:** 1.4.0
+**Last Updated:** 2025-12-24
 **Status:** Production Release
 
 ## Vision & Goals
@@ -43,7 +43,6 @@ MacGuard is an anti-theft alarm application for macOS that protects laptops in p
 - Windows/Linux support
 - Network-based tracking (no Find My Mac integration)
 - Data encryption (focused on physical theft, not data security)
-- Multi-device management (one laptop per installation)
 
 ## Core Features
 
@@ -119,21 +118,27 @@ MacGuard is an anti-theft alarm application for macOS that protects laptops in p
 **Status:** Complete
 
 **Requirements:**
-- Scan for trusted Bluetooth device (iPhone, AirPods, Apple Watch)
-- Auto-disarm when device is nearby (RSSI > -60 dB)
-- User selects trusted device from paired devices only
+- Scan for trusted Bluetooth devices (iPhone, AirPods, Apple Watch)
+- Support up to 10 trusted devices
+- Auto-disarm when ANY device is nearby (RSSI > threshold)
+- Auto-arm when ALL devices leave proximity
+- User selects trusted devices from paired devices only
 - Proximity detection runs only when armed
+- Legacy single-device data auto-migrates to new array format
 
 **Acceptance Criteria:**
-- ✅ RSSI threshold of -60 dB provides ~5-10 meter range
-- ✅ Auto-disarm latency <3 seconds after entering proximity
-- ✅ No false disarms from non-trusted devices
-- ✅ Graceful handling of Bluetooth permission denial
+- RSSI threshold configurable (default -60 dB, ~5-10 meter range)
+- Auto-disarm latency <3 seconds after any device enters proximity
+- Auto-arm triggers when all trusted devices leave proximity
+- No false disarms from non-trusted devices
+- Graceful handling of Bluetooth permission denial
+- Device list UI with add/remove functionality
 
 **Technical Constraints:**
 - CoreBluetooth requires Bluetooth permission
 - RSSI values vary by device type and environment
 - Scanning consumes battery power
+- Max 10 devices (performance limit)
 
 ### 6. Touch ID + PIN Authentication
 **Priority:** P0 (Critical)
@@ -304,9 +309,9 @@ MacGuard is an anti-theft alarm application for macOS that protects laptops in p
 | Administrator | No | Lid close alarm disabled |
 
 ### Data Storage
-- **UserDefaults:** App settings, trusted device UUID
+- **UserDefaults:** App settings, trusted devices array (JSON encoded)
 - **Keychain:** PIN (key: `com.MacGuard.PIN`)
-- **In-Memory:** Authentication state, alarm state
+- **In-Memory:** Authentication state, alarm state, device proximity states
 
 ### Build & Distribution
 - **Build Tool:** Swift Package Manager (SPM)
@@ -337,15 +342,15 @@ MacGuard is an anti-theft alarm application for macOS that protects laptops in p
 See `docs/project-roadmap.md` for detailed roadmap and planned enhancements.
 
 ### Completed Milestones
-- ✅ Core alarm functionality (v1.0.0)
-- ✅ Bluetooth proximity auto-disarm (v1.1.0)
-- ✅ Sparkle auto-update integration (v1.2.0)
-- ✅ CI/CD automation (v1.3.0)
+- Core alarm functionality (v1.0.0)
+- Bluetooth proximity auto-disarm (v1.1.0)
+- Sparkle auto-update integration (v1.2.0)
+- CI/CD automation (v1.3.0)
+- Multiple trusted devices support (v1.4.0)
 
 ### Upcoming Milestones
 - Unit test coverage (target: >80%)
 - UpdateManager memory leak fix
-- Multiple trusted devices support
 - Custom countdown duration
 - Notification on alarm trigger
 - iCloud sync for settings
