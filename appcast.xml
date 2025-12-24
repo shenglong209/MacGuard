@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.2</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.2</link>
+      <sparkle:version>2002</sparkle:version>
+      <sparkle:shortVersionString>2.0.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 2.0.2</h3>
+        <ul><li>Fix build number calculation: was `2.0.1 → 201`, now `2.0.1 → 2001`</li><li>Update v2.0.0 and v2.0.1 build numbers in appcast.xml</li><li>Fix workflow to use formula: `MAJOR*1000 + MINOR*100 + PATCH`</li><li>v2.0.1 → 201</li><li>v1.3.26 → 1326</li><li>v2.0.1 → 2001</li><li>v2.0.0 → 2000</li><li>v1.3.26 → 1326</li></ul>
+      ]]></description>
+      <pubDate>Wed, 24 Dec 2025 06:49:11 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v2.0.2/MacGuard-2.0.2.dmg"
+        sparkle:edSignature="+zM3ATG5pnK6LAE7MPhBXB2KVgSPOZQSsmDEP29wJ9VKs07ACvSKsl0hHzYES8O3EVi40m3nEhN7cDt1QsrQCA=="
+        length="6910601"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 2.0.1</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.1</link>
       <sparkle:version>2001</sparkle:version>
