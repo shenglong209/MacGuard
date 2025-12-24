@@ -15,7 +15,9 @@ Anti-theft alarm app for macOS. Protects your laptop in public places by trigger
 - **Input Monitoring** - Detects keyboard, mouse, and trackpad activity
 - **Sleep/Power Detection** - Triggers on lid close or power disconnect
 - **Lid Close Alarm** - Instant alarm when lid closes (requires admin, prevents sleep)
-- **Bluetooth Proximity** - Auto-disarm when trusted device nearby; auto-arm when device leaves
+- **Bluetooth Proximity** - Auto-disarm when trusted device nearby; auto-arm when all devices leave
+- **Multiple Trusted Devices** - Support up to 10 devices (Apple and non-Apple Bluetooth)
+- **Dynamic Menu Bar Icon** - Icon reflects armed/disarmed status
 - **Touch ID + PIN** - Secure authentication to disarm
 - **Configurable Alarm** - Choose from 14 system sounds, custom audio files, or bundled "Don't Touch My Mac"
 - **Auto-Lock** - Optional screen lock when armed (configurable)
@@ -76,12 +78,11 @@ To prevent users from needing to re-grant Accessibility permission after each up
    - Click "Grant" next to Accessibility
    - Enable MacGuard in System Preferences → Privacy & Security → Accessibility
 
-2. **Configure Trusted Device** (optional)
-   - Click "Scan for Devices..." in Settings
-   - Shows only devices paired with your Mac
-   - Select your iPhone, AirPods, or Apple Watch
-   - Device will auto-disarm alarm when nearby
-   - Enable "Auto-arm when device leaves" for automatic protection
+2. **Configure Trusted Devices** (optional)
+   - Click "Manage Devices" in Settings → Trusted Devices
+   - Add up to 10 Bluetooth devices (iPhone, AirPods, Apple Watch, or paired non-Apple devices)
+   - Devices will auto-disarm alarm when nearby
+   - Enable "Auto-arm when devices leave" for automatic protection when all devices leave
 
 3. **Set Backup PIN**
    - Click "Set PIN" in Security section
@@ -144,7 +145,9 @@ MacGuard/
 │   ├── MenuBarView.swift            # Menu bar dropdown
 │   ├── SettingsView.swift           # Settings window
 │   ├── CountdownOverlayView.swift   # Fullscreen overlay
-│   └── DeviceScannerView.swift      # Bluetooth scanner
+│   ├── DeviceScannerView.swift      # Bluetooth scanner
+│   ├── TrustedDevicesConfigView.swift  # Device management
+│   └── ActivityLogView.swift        # Event log viewer
 ├── Models/
 │   ├── AlarmState.swift
 │   ├── TrustedDevice.swift

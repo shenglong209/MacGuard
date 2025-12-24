@@ -1,6 +1,6 @@
 # MacGuard - Product Development Requirements
 
-**Version:** 1.4.0
+**Version:** 2.0.1
 **Last Updated:** 2025-12-24
 **Status:** Production Release
 
@@ -347,6 +347,7 @@ See `docs/project-roadmap.md` for detailed roadmap and planned enhancements.
 - Sparkle auto-update integration (v1.2.0)
 - CI/CD automation (v1.3.0)
 - Multiple trusted devices support (v1.4.0)
+- Major feature release: non-Apple BT, dynamic icon, Mac speaker (v2.0.0)
 
 ### Upcoming Milestones
 - Unit test coverage (target: >80%)

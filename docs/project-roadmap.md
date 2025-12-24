@@ -1,6 +1,6 @@
 # MacGuard Project Roadmap
 
-**Version:** 1.4.0
+**Version:** 2.0.1
 **Last Updated:** 2025-12-24
 **Status:** Production Release
 
@@ -112,6 +112,44 @@
 - Security model documentation
 - Performance metrics
 - Build and deployment instructions
+
+---
+
+### v2.0.0 - Major Feature Release
+**Status:** ✅ Complete (2025-12-24)
+
+**Features Delivered:**
+- Multiple trusted devices (up to 10 BLE + Classic Bluetooth)
+- Non-Apple device support (any paired Bluetooth device)
+- Dynamic menu bar icon (reflects armed/disarmed status)
+- Force alarm audio to Mac built-in speaker (bypasses headphones)
+- Activity log viewer with filtering
+- Improved UI/UX with glass morphism theme
+- Auto-arm mode: trigger when ALL or ANY devices leave
+- Configurable detection distance (Close/Medium/Far)
+- Grace period for auto-arm (10-60 seconds)
+
+**Technical Achievements:**
+- CoreAudio integration for output device switching
+- Classic Bluetooth (IOBluetooth) + BLE (CoreBluetooth) unified scanning
+- Per-device proximity state tracking with hysteresis
+- Child window focus management (parent refocus on close)
+
+**Files Added/Changed:**
+- `Views/TrustedDevicesConfigView.swift` - Device management UI
+- `Views/ActivityLogView.swift` - Event log viewer
+- `Managers/AlarmAudioManager.swift` - Mac speaker forcing
+- `Managers/BluetoothProximityManager.swift` - Multi-device support
+- `Theme/` - Glass morphism components
+
+---
+
+### v2.0.1 - Bug Fixes
+**Status:** ✅ Complete (2025-12-24)
+
+**Fixes:**
+- Fixed appcast build number calculation (201 → 2001)
+- Ensures proper version ordering for Sparkle updates
 
 ---
 
@@ -517,6 +555,8 @@ No legacy features planned for removal at this time.
 ### Release History
 | Version | Date | Highlights |
 |---------|------|------------|
+| v2.0.1 | 2025-12-24 | Fix appcast build number ordering |
+| v2.0.0 | 2025-12-24 | Multi-device, non-Apple BT, dynamic icon, Mac speaker |
 | v1.4.0 | 2025-12-24 | Multiple trusted devices (up to 10) |
 | v1.3.4 | 2025-12-19 | Comprehensive documentation |
 | v1.3.3 | 2024-12-18 | CI/CD automation complete |
