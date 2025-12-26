@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.7</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.7</link>
+      <sparkle:version>2007</sparkle:version>
+      <sparkle:shortVersionString>2.0.7</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 2.0.7</h3>
+        <ul><li>Add `.contentShape(Capsule())` to Touch ID and PIN buttons</li><li>Entire button area is now clickable, not just the text</li><li>[ ] Click on edges of Touch ID button → verify it triggers</li><li>[ ] Click on edges of Enter PIN button → verify it triggers</li></ul>
+      ]]></description>
+      <pubDate>Fri, 26 Dec 2025 09:32:14 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v2.0.7/MacGuard-2.0.7.dmg"
+        sparkle:edSignature="HpcpJ6Ar4mOg1c1w2ExFWk5Ns4r69r+Syun2C2bj3Msup8KEx/WlqIoxw258piD4CUXBn33BX04qWVpuDUaNBQ=="
+        length="6983435"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 2.0.6</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.6</link>
       <sparkle:version>2006</sparkle:version>
