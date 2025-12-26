@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.6</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.6</link>
+      <sparkle:version>2006</sparkle:version>
+      <sparkle:shortVersionString>2.0.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 2.0.6</h3>
+        <ul><li>Auto-trigger Touch ID when entering alarming state</li><li>No user click required - Touch ID dialog appears immediately</li><li>Falls back to PIN entry if biometrics fail or cancelled</li><li>[ ] Arm MacGuard and trigger alarm</li><li>[ ] Verify Touch ID prompt appears automatically</li><li>[ ] Cancel Touch ID → verify PIN entry shows</li><li>[ ] Verify successful Touch ID disarms alarm</li></ul>
+      ]]></description>
+      <pubDate>Fri, 26 Dec 2025 09:21:31 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v2.0.6/MacGuard-2.0.6.dmg"
+        sparkle:edSignature="4TblMknVq61No9Y1K5YWBZckOSXCB/ab2p/xvAr4TTu2PQrJxmXHjNXdSrbT67qXpUbkrpxKHXWTgP7SiDKiDg=="
+        length="6980931"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 2.0.5</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.5</link>
       <sparkle:version>2005</sparkle:version>
