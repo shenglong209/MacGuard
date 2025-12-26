@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MacGuard - Anti-Theft Alarm for macOS</title>
+    <meta name="description" content="Protect your MacBook in public places with MacGuard. Triggers a loud alarm when unauthorized access is detected.">
+    <meta name="keywords" content="MacGuard, macOS, anti-theft, alarm, laptop security, Bluetooth proximity">
+    <meta property="og:title" content="MacGuard - Anti-Theft Alarm for macOS">
+    <meta property="og:description" content="Protect your MacBook in public places. Triggers a loud alarm when unauthorized access is detected.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://shenglong209.github.io/MacGuard/">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">
+                <img src="assets/app-icon.png" alt="MacGuard" class="nav-icon">
+                <span>MacGuard</span>
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#docs">Documentation</a>
+                <a href="#install">Install</a>
+                <a href="https://github.com/shenglong209/MacGuard" class="nav-github" target="_blank" rel="noopener">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <!-- Aurora Backdrop -->
+        <div class="hero-backdrop" aria-hidden="true"></div>
+
+        <div class="hero-container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="badge-icon">🛡️</span>
+                    <span>macOS Security App</span>
+                </div>
+                <h1 class="hero-title"><span class="title-line">Protect Your MacBook</span><br><span class="title-line">In Public Places</span></h1>
+                <p class="hero-subtitle">MacGuard triggers a loud alarm when unauthorized access is detected. Work confidently in cafés, libraries, and coworking spaces.</p>
+                <div class="hero-actions">
+                    <a href="https://github.com/shenglong209/MacGuard/releases/latest" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download for macOS
+                    </a>
+                    <a href="https://github.com/shenglong209/MacGuard" class="btn btn-secondary">View on GitHub</a>
+                </div>
+                <div class="hero-meta">
+                    <span class="meta-item">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        macOS 13+
+                    </span>
+                    <span class="meta-item">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        Free &amp; Open Source
+                    </span>
+                    <span class="meta-item">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        Auto-Update
+                    </span>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <img src="assets/hero-screenshot.png" alt="MacGuard Screenshot" class="screenshot">
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="section-container">
+            <div class="section-header">
+                <h2>Comprehensive Protection</h2>
+                <p>Multiple layers of detection to keep your MacBook safe</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <h3>Input Monitoring</h3>
+                    <p>Detects keyboard, mouse, and trackpad activity. Any unauthorized input triggers the alarm countdown.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18"/>
+                        </svg>
+                    </div>
+                    <h3>Lid Close Detection</h3>
+                    <p>Instant alarm when the lid closes. Prevents sleep to ensure the alarm sounds even when closed.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+                            <line x1="12" y1="2" x2="12" y2="12"/>
+                        </svg>
+                    </div>
+                    <h3>Power Disconnect</h3>
+                    <p>Triggers alarm when the power cable is unplugged. Perfect protection against grab-and-run theft.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </div>
+                    <h3>Trusted Devices</h3>
+                    <p>Add up to 10 trusted Bluetooth devices — iPhone, AirPods, Apple Watch, or any paired non-Apple device.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 2a10 10 0 1 0 10 10"/>
+                            <path d="M12 2a10 10 0 0 1 10 10"/>
+                            <circle cx="12" cy="12" r="2"/>
+                            <path d="M12 2v4"/>
+                        </svg>
+                    </div>
+                    <h3>Bluetooth Proximity</h3>
+                    <p>Auto-disarm when any trusted device is nearby. Auto-arm when all devices leave proximity.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 11c0-1.1-.9-2-2-2s-2 .9-2 2"/>
+                            <rect x="3" y="11" width="18" height="11" rx="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                    </div>
+                    <h3>Touch ID + PIN</h3>
+                    <p>Secure authentication to disarm. Use Touch ID for convenience or your backup PIN code.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="how-it-works">
+        <div class="section-container">
+            <div class="section-header">
+                <h2>How It Works</h2>
+                <p>Simple state machine for reliable protection</p>
+            </div>
+            <div class="state-machine">
+                <!-- SVG Gradient Definitions -->
+                <svg width="0" height="0" style="position:absolute">
+                    <defs>
+                        <linearGradient id="grad-idle" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#a1a1a6"/>
+                            <stop offset="100%" style="stop-color:#636366"/>
+                        </linearGradient>
+                        <linearGradient id="grad-armed" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#40a9ff"/>
+                            <stop offset="100%" style="stop-color:#0071e3"/>
+                        </linearGradient>
+                        <linearGradient id="grad-triggered" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#ffc53d"/>
+                            <stop offset="100%" style="stop-color:#ff9f0a"/>
+                        </linearGradient>
+                        <linearGradient id="grad-alarming" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#ff6b6b"/>
+                            <stop offset="100%" style="stop-color:#ff3b30"/>
+                        </linearGradient>
+                        <linearGradient id="grad-disarmed" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#5bd98a"/>
+                            <stop offset="100%" style="stop-color:#34c759"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+
+                <div class="state state-idle">
+                    <div class="state-circle">
+                        <span class="state-icon">
+                            <svg width="38" height="38" viewBox="0 0 24 24">
+                                <path d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" fill="url(#grad-idle)"/>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="state-label">Idle</div>
+                    <div class="state-desc">Disarmed, not monitoring</div>
+                </div>
+                <div class="state-arrow">
+                    <span class="arrow-label">arm</span>
+                </div>
+                <div class="state state-armed">
+                    <div class="state-circle">
+                        <span class="state-icon">
+                            <svg width="38" height="38" viewBox="0 0 24 24">
+                                <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z" fill="url(#grad-armed)"/>
+                                <path d="M10 12l2 2 4-4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="state-label">Armed</div>
+                    <div class="state-desc">Monitoring input, sleep, power</div>
+                </div>
+                <div class="state-arrow">
+                    <span class="arrow-label">input detected</span>
+                </div>
+                <div class="state state-triggered">
+                    <div class="state-circle">
+                        <span class="state-icon">
+                            <svg width="38" height="38" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" fill="url(#grad-triggered)"/>
+                                <path d="M12 6v6l4 2" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="state-label">Triggered</div>
+                    <div class="state-desc">Configurable countdown</div>
+                </div>
+                <div class="state-arrow">
+                    <span class="arrow-label">timeout</span>
+                </div>
+                <div class="state state-alarming">
+                    <div class="state-circle">
+                        <span class="state-icon">
+                            <svg width="38" height="38" viewBox="0 0 24 24">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" fill="url(#grad-alarming)"/>
+                                <circle cx="12" cy="19" r="2" fill="url(#grad-alarming)"/>
+                                <path d="M5.5 5.5L3 3M18.5 5.5L21 3" stroke="url(#grad-alarming)" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="state-label">Alarming</div>
+                    <div class="state-desc">Forces built-in speaker, blocks mute</div>
+                </div>
+                <div class="state-arrow state-arrow-return">
+                    <span class="arrow-label">Touch ID / PIN / Trusted Device</span>
+                </div>
+                <div class="state state-disarmed">
+                    <div class="state-circle">
+                        <span class="state-icon">
+                            <svg width="38" height="38" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" fill="url(#grad-disarmed)"/>
+                                <path d="M9 12l2 2 4-4" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="state-label">Disarmed</div>
+                    <div class="state-desc">Auto-disarm when trusted device nearby</div>
+                </div>
+            </div>
+            <div class="workflow-note">
+                <p><strong>Trusted Device Auto-Disarm:</strong> When any of your trusted devices (iPhone, AirPods, Apple Watch, or non-Apple Bluetooth) is detected nearby, MacGuard automatically disarms — even while alarming. No authentication needed.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Documentation Section -->
+    <section id="docs" class="docs">
+        <div class="section-container">
+            <div class="section-header">
+                <h2>Documentation</h2>
+                <p>Everything you need to understand and contribute</p>
+            </div>
+            <div class="docs-grid">
+                <a href="https://github.com/shenglong209/MacGuard/blob/main/docs/project-overview-pdr.md" class="doc-card" target="_blank" rel="noopener">
+                    <div class="doc-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                            <rect x="9" y="3" width="6" height="4" rx="1"/>
+                            <path d="M9 12h6M9 16h6"/>
+                        </svg>
+                    </div>
+                    <h3>Product Overview</h3>
+                    <p>Vision, features, requirements, and success criteria</p>
+                </a>
+                <a href="https://github.com/shenglong209/MacGuard/blob/main/docs/codebase-summary.md" class="doc-card" target="_blank" rel="noopener">
+                    <div class="doc-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        </svg>
+                    </div>
+                    <h3>Codebase Summary</h3>
+                    <p>Technical overview, file structure, and dependencies</p>
+                </a>
+                <a href="https://github.com/shenglong209/MacGuard/blob/main/docs/system-architecture.md" class="doc-card" target="_blank" rel="noopener">
+                    <div class="doc-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                            <path d="M10 6.5h4M6.5 10v4M17.5 10v4M10 17.5h4"/>
+                        </svg>
+                    </div>
+                    <h3>System Architecture</h3>
+                    <p>State machine, data flow, and component design</p>
+                </a>
+                <a href="https://github.com/shenglong209/MacGuard/blob/main/docs/code-standards.md" class="doc-card" target="_blank" rel="noopener">
+                    <div class="doc-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                    </div>
+                    <h3>Code Standards</h3>
+                    <p>Swift patterns, naming conventions, best practices</p>
+                </a>
+                <a href="https://github.com/shenglong209/MacGuard/blob/main/docs/deployment-guide.md" class="doc-card" target="_blank" rel="noopener">
+                    <div class="doc-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    </div>
+                    <h3>Deployment Guide</h3>
+                    <p>Build instructions, release process, and CI/CD</p>
+                </a>
+                <a href="https://github.com/shenglong209/MacGuard/blob/main/docs/project-roadmap.md" class="doc-card" target="_blank" rel="noopener">
+                    <div class="doc-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+                            <line x1="9" y1="3" x2="9" y2="18"/>
+                            <line x1="15" y1="6" x2="15" y2="21"/>
+                        </svg>
+                    </div>
+                    <h3>Project Roadmap</h3>
+                    <p>Completed milestones, known issues, future plans</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section id="install" class="install">
+        <div class="section-container">
+            <div class="section-header">
+                <h2>Quick Installation</h2>
+                <p>Get MacGuard running in under 5 minutes</p>
+            </div>
+            <div class="install-steps">
+                <div class="install-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Download</h3>
+                        <p>Get the latest DMG from <a href="https://github.com/shenglong209/MacGuard/releases/latest">GitHub Releases</a></p>
+                    </div>
+                </div>
+                <div class="install-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Install</h3>
+                        <p>Open the DMG and drag MacGuard to Applications</p>
+                    </div>
+                </div>
+                <div class="install-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>First Launch</h3>
+                        <p>Run in Terminal: <code>xattr -cr /Applications/MacGuard.app</code></p>
+                    </div>
+                </div>
+                <div class="install-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h3>Grant Permission</h3>
+                        <p>Enable MacGuard in System Preferences → Privacy → Accessibility</p>
+                    </div>
+                </div>
+            </div>
+            <div class="install-cta">
+                <a href="https://github.com/shenglong209/MacGuard/releases/latest" class="btn btn-primary btn-large">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download MacGuard
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Requirements Section -->
+    <section class="requirements">
+        <div class="section-container">
+            <div class="requirements-grid">
+                <div class="requirement">
+                    <h4>System Requirements</h4>
+                    <ul>
+                        <li>macOS 13 Ventura or later</li>
+                        <li>Accessibility permission</li>
+                        <li>Bluetooth (for proximity)</li>
+                    </ul>
+                </div>
+                <div class="requirement">
+                    <h4>Permissions</h4>
+                    <ul>
+                        <li><strong>Accessibility:</strong> Input monitoring</li>
+                        <li><strong>Bluetooth:</strong> Device proximity</li>
+                        <li><strong>Admin:</strong> Lid close alarm (optional)</li>
+                    </ul>
+                </div>
+                <div class="requirement">
+                    <h4>Built With</h4>
+                    <ul>
+                        <li>Swift 5.9+ &amp; SwiftUI</li>
+                        <li>CoreBluetooth &amp; IOKit</li>
+                        <li>Sparkle for auto-updates</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <img src="assets/app-icon.png" alt="MacGuard" class="footer-icon">
+                    <span>MacGuard</span>
+                </div>
+                <p class="footer-tagline">Anti-theft alarm for macOS. MIT License.</p>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/shenglong209/MacGuard" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://github.com/shenglong209/MacGuard/issues" target="_blank" rel="noopener">Issues</a>
+                <a href="https://github.com/shenglong209/MacGuard/releases" target="_blank" rel="noopener">Releases</a>
+            </div>
+            <div class="footer-credits">
+                <p>Built with <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude Code</a> &amp; <a href="https://claudekit.cc/?ref=BPLLTRW2" target="_blank" rel="noopener">ClaudeKit</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
