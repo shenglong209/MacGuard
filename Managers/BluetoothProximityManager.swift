@@ -62,6 +62,27 @@ class BluetoothProximityManager: NSObject, ObservableObject {
     private let normalPollingInterval: TimeInterval = 1.0
     private let armedPollingInterval: TimeInterval = 0.5
 
+    // BT state recovery cooldown (prevents false "away" after BT powers on)
+    private var lastPoweredOnTime: Date?
+    private let btRecoveryCooldown: TimeInterval = 15.0  // 15s cooldown after power on
+
+    // BT stability tracking (prevents auto-arm during BT instability)
+    private var btStateChangeCount: Int = 0
+    private var btStateChangeWindowStart: Date = Date()
+    private let btStabilityWindow: TimeInterval = 300.0  // 5 min window
+    private let btStabilityThreshold: Int = 3  // 3+ changes = unstable
+
+    /// Published state for UI binding (derived from isBluetoothStable)
+    @Published var isBluetoothUnstable: Bool = false
+
+    // Dynamic debounce for low power mode
+    private var effectiveBleDebounce: TimeInterval {
+        ProcessInfo.processInfo.isLowPowerModeEnabled ? 15.0 : 5.0
+    }
+    private var effectiveRssiAwayDebounce: TimeInterval {
+        ProcessInfo.processInfo.isLowPowerModeEnabled ? 10.0 : 3.0
+    }
+
     // Fallback RSSI for connected devices when actual RSSI unavailable
     // Uses -50 dBm (strong signal, conservative near range)
     private let fallbackRSSI: Int = -50
@@ -101,6 +122,17 @@ class BluetoothProximityManager: NSObject, ObservableObject {
     var areAllDevicesAway: Bool {
         guard !trustedDevices.isEmpty else { return false }
         return deviceProximityStates.values.allSatisfy { !$0 }
+    }
+
+    /// Check if in BT recovery cooldown period (after poweredOn)
+    private var isInRecoveryCooldown: Bool {
+        guard let lastPoweredOn = lastPoweredOnTime else { return false }
+        return Date().timeIntervalSince(lastPoweredOn) < btRecoveryCooldown
+    }
+
+    /// Check if Bluetooth is stable (few state changes, powered on)
+    var isBluetoothStable: Bool {
+        btStateChangeCount < btStabilityThreshold && centralManager.state == .poweredOn
     }
 
     // MARK: - Initialization
@@ -333,11 +365,13 @@ class BluetoothProximityManager: NSObject, ObservableObject {
                 // Device disconnected - apply debounce to prevent rapid oscillation
                 let lastNearby = bleDeviceLastNearby[deviceID] ?? .distantPast
                 let timeSinceNearby = Date().timeIntervalSince(lastNearby)
+                let debounceInterval = effectiveBleDebounce
 
-                if timeSinceNearby < bleDebounceInterval {
+                if timeSinceNearby < debounceInterval {
                     // Recently was nearby - debounce the disconnect
                     if let device = trustedDevices.first(where: { $0.id == deviceID }) {
-                        log(.bluetooth, "BLE device (\(device.name)) disconnect debounced - ignoring brief disconnect")
+                        let lowPowerSuffix = ProcessInfo.processInfo.isLowPowerModeEnabled ? " (low power)" : ""
+                        log(.bluetooth, "BLE device (\(device.name)) disconnect debounced - ignoring brief disconnect\(lowPowerSuffix)")
                     }
                     continue
                 }
@@ -389,8 +423,11 @@ class BluetoothProximityManager: NSObject, ObservableObject {
             if isConnected != wasConnected {
                 // Debounce: Ignore disconnect if it happens within debounce interval of connect
                 // This handles AirPods and other devices with flaky connection behavior
-                if !isConnected && timeSinceLastChange < classicDeviceDebounceInterval {
-                    log(.bluetooth, "Classic device (\(device.name)) disconnect debounced - ignoring rapid state change")
+                // Uses dynamic debounce (longer in low power mode)
+                let debounceInterval = effectiveBleDebounce
+                if !isConnected && timeSinceLastChange < debounceInterval {
+                    let lowPowerSuffix = ProcessInfo.processInfo.isLowPowerModeEnabled ? " (low power)" : ""
+                    log(.bluetooth, "Classic device (\(device.name)) disconnect debounced - ignoring rapid state change\(lowPowerSuffix)")
                     continue
                 }
 
@@ -450,18 +487,26 @@ class BluetoothProximityManager: NSObject, ObservableObject {
             newState = rssi >= rssiPresentThreshold  // Become nearby only above present threshold
         }
 
+        // Block away transitions during BT recovery cooldown (prevents false "away" after power on)
+        if currentState && !newState && isInRecoveryCooldown {
+            newState = true
+            log(.bluetooth, "\(trustedDevices[deviceIndex].name) away blocked (BT recovery cooldown)")
+            // Still update RSSI tracking below, but don't transition state
+        }
+
         // RSSI-based debounce: if transitioning from nearby→away, require sustained low RSSI
+        // Uses dynamic debounce interval (longer in low power mode)
         if currentState && !newState {
             // Check if we've had sustained low RSSI for debounce interval
             let lastNearby = deviceLastNearbyRSSI[deviceID] ?? .distantPast
             let timeSinceNearby = Date().timeIntervalSince(lastNearby)
+            let debounceInterval = effectiveRssiAwayDebounce
 
-            if timeSinceNearby < rssiAwayDebounceInterval {
+            if timeSinceNearby < debounceInterval {
                 // Recent nearby RSSI - debounce, keep as nearby
                 newState = true
-                if let device = trustedDevices.first(where: { $0.id == deviceID }) {
-                    log(.bluetooth, "\(device.name) RSSI drop debounced (last nearby: \(String(format: "%.1f", timeSinceNearby))s ago)")
-                }
+                let lowPowerSuffix = ProcessInfo.processInfo.isLowPowerModeEnabled ? " (low power)" : ""
+                log(.bluetooth, "\(trustedDevices[deviceIndex].name) RSSI drop debounced (last nearby: \(String(format: "%.1f", timeSinceNearby))s ago)\(lowPowerSuffix)")
             }
         }
 
@@ -580,6 +625,17 @@ extension BluetoothProximityManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         isBluetoothEnabled = central.state == .poweredOn
 
+        // Track BT state changes for stability detection
+        btStateChangeCount += 1
+        if Date().timeIntervalSince(btStateChangeWindowStart) > btStabilityWindow {
+            btStateChangeCount = 1
+            btStateChangeWindowStart = Date()
+        }
+        isBluetoothUnstable = btStateChangeCount >= btStabilityThreshold
+        if isBluetoothUnstable {
+            log(.bluetooth, "BT unstable - \(btStateChangeCount) state changes in \(Int(btStabilityWindow))s window")
+        }
+
         let stateName: String
         switch central.state {
         case .poweredOn: stateName = "poweredOn"
@@ -592,10 +648,17 @@ extension BluetoothProximityManager: CBCentralManagerDelegate {
         }
         log(.bluetooth, "State changed: \(stateName)")
 
-        // Auto-start scanning when Bluetooth powers on and trusted devices exist
+        // Handle power on - set recovery cooldown and reset proximity states
         if central.state == .poweredOn {
+            lastPoweredOnTime = Date()
+            log(.bluetooth, "BT recovery cooldown started (\(Int(btRecoveryCooldown))s)")
+            // Assume all devices nearby during recovery (prevent false "away")
+            for deviceID in deviceProximityStates.keys {
+                deviceProximityStates[deviceID] = true
+            }
             startScanningIfNeeded()
         }
+
 
         delegate?.bluetoothStateChanged(central.state)
     }

@@ -32,6 +32,11 @@ class AlarmStateManager: ObservableObject {
     private let powerMonitor = PowerMonitor()
     private let overlayController = CountdownWindowController()
 
+    /// Tracks if current armed state was triggered by auto-arm (device left)
+    /// When true, auto-disarm on device return is allowed
+    /// When false (manual arm), device must actually leave first before auto-disarm
+    private var wasAutoArmed: Bool = false
+
     // MARK: - Computed Properties
 
     var isArmed: Bool {
@@ -102,8 +107,12 @@ class AlarmStateManager: ObservableObject {
     // MARK: - State Transitions
 
     /// Arm the alarm system, optionally lock screen, and start monitoring
-    func arm() {
+    /// - Parameter isAutoArm: true if triggered by auto-arm (device left), false for manual arm
+    func arm(isAutoArm: Bool = false) {
         guard state == .idle else { return }
+
+        // Track if this was auto-armed (for auto-disarm logic)
+        wasAutoArmed = isAutoArm
 
         // Pre-load audio for instant playback
         audioManager.prepare()
@@ -313,7 +322,7 @@ class AlarmStateManager: ObservableObject {
             Task { @MainActor in
                 guard self.state == .idle else { return }
                 ActivityLogManager.shared.log(.armed, "Auto-arming - trusted device still away")
-                self.arm()
+                self.arm(isAutoArm: true)
             }
         }
     }
@@ -419,6 +428,14 @@ extension AlarmStateManager: BluetoothProximityDelegate {
             // Auto-disarm logic depends on mode
             guard self.state == .armed || self.state == .triggered || self.state == .alarming else { return }
 
+            // Only auto-disarm if system was auto-armed (device actually left)
+            // If manually armed with device present, device must leave first before auto-disarm applies
+            guard self.wasAutoArmed else {
+                // Manual arm - don't auto-disarm, just log
+                ActivityLogManager.shared.log(.bluetooth, "Device '\(device.name)' nearby but manual arm - not auto-disarming")
+                return
+            }
+
             // In "any device away" mode: only disarm when ALL devices are nearby
             // In "all devices away" mode: disarm when ANY device returns
             if AppSettings.shared.autoArmMode == .anyDeviceAway {
@@ -440,10 +457,25 @@ extension AlarmStateManager: BluetoothProximityDelegate {
         Task { @MainActor in
             ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(device.name)' left proximity")
 
+            // If armed and device leaves, enable auto-disarm on return
+            // (device actually left, so return should disarm)
+            if self.state == .armed || self.state == .triggered || self.state == .alarming {
+                if !self.wasAutoArmed {
+                    self.wasAutoArmed = true
+                    ActivityLogManager.shared.log(.bluetooth, "Device left while armed - enabling auto-disarm on return")
+                }
+            }
+
             // For "any device away" mode - start auto-arm when any device leaves
             guard AppSettings.shared.autoArmOnDeviceLeave,
                   AppSettings.shared.autoArmMode == .anyDeviceAway,
                   self.state == .idle else { return }
+
+            // Don't auto-arm if BT is unstable or powered off (prevents false alarms)
+            guard self.bluetoothManager.isBluetoothStable else {
+                ActivityLogManager.shared.log(.bluetooth, "Auto-arm blocked - BT unstable or off")
+                return
+            }
 
             ActivityLogManager.shared.log(.bluetooth, "Any device away mode - starting grace period")
             self.startAutoArmTimer()
@@ -455,6 +487,12 @@ extension AlarmStateManager: BluetoothProximityDelegate {
             guard AppSettings.shared.autoArmOnDeviceLeave,
                   AppSettings.shared.autoArmMode == .allDevicesAway,
                   self.state == .idle else { return }
+
+            // Don't auto-arm if BT is unstable or powered off (prevents false alarms)
+            guard self.bluetoothManager.isBluetoothStable else {
+                ActivityLogManager.shared.log(.bluetooth, "Auto-arm blocked - BT unstable or off")
+                return
+            }
 
             ActivityLogManager.shared.log(.bluetooth, "All trusted devices away - starting grace period")
             self.startAutoArmTimer()
