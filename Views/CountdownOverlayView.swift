@@ -174,6 +174,7 @@ struct CountdownOverlayView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, Theme.Spacing.xxl)
                     .padding(.vertical, Theme.Spacing.lg)
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .background {
@@ -189,6 +190,7 @@ struct CountdownOverlayView: View {
                         .clipShape(Capsule())
                 }
                 .glassCapsuleBorder(prominent: true)
+                .contentShape(Capsule())
             }
 
             // PIN button
@@ -203,6 +205,7 @@ struct CountdownOverlayView: View {
                     .foregroundStyle(.white.opacity(0.9))
                     .padding(.horizontal, Theme.Spacing.xl)
                     .padding(.vertical, Theme.Spacing.md)
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .background {
@@ -217,6 +220,7 @@ struct CountdownOverlayView: View {
                         .clipShape(Capsule())
                 }
                 .glassCapsuleBorder()
+                .contentShape(Capsule())
             }
         }
     }
