@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.8</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.8</link>
+      <sparkle:version>2008</sparkle:version>
+      <sparkle:shortVersionString>2.0.8</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 2.0.8</h3>
+        <ul><li>Add `standardUserDriverDidReceiveUserAttention` delegate callback</li><li>Set `window.level = .floating` temporarily to force visibility over other windows</li><li>Find Sparkle windows by type/title and call `makeKeyAndOrderFront`</li><li>Reset window level after 0.5s</li><li>[ ] Launch app when new version available</li><li>[ ] Verify update dialog appears on top of all windows</li><li>[ ] Verify window level returns to normal after appearing</li></ul>
+      ]]></description>
+      <pubDate>Fri, 26 Dec 2025 09:38:37 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v2.0.8/MacGuard-2.0.8.dmg"
+        sparkle:edSignature="QxGpoaregGkPmVjNuN2br+0h5PmSdX6LznZHsze0EQv28vV8s8k1LfcuQw/o00Lkb9Xrfd2DrNO7PrZRMc0FDg=="
+        length="6986294"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 2.0.7</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.7</link>
       <sparkle:version>2007</sparkle:version>
