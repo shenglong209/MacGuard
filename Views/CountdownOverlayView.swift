@@ -12,6 +12,7 @@ struct CountdownOverlayView: View {
     @State private var iconScale: CGFloat = 1.0
     @State private var pulseOpacity: Double = 0.3
     @State private var pulseScale: CGFloat = 1.0
+    @State private var hasAttemptedAutoAuth = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -46,9 +47,16 @@ struct CountdownOverlayView: View {
         }
         .onAppear {
             startAnimations()
+            // Auto-trigger Touch ID when overlay appears (alarming state)
+            autoTriggerBiometrics()
         }
-        .onChange(of: alarmManager.state) { _ in
+        .onChange(of: alarmManager.state) { newState in
             startAnimations()
+            // Reset auto-auth flag when state changes
+            if newState == .alarming {
+                hasAttemptedAutoAuth = false
+                autoTriggerBiometrics()
+            }
         }
     }
 
@@ -251,6 +259,21 @@ struct CountdownOverlayView: View {
             if !success {
                 withAnimation { showPINEntry = true }
             }
+        }
+    }
+
+    /// Auto-trigger Touch ID when in alarming state
+    private func autoTriggerBiometrics() {
+        // Only auto-trigger once per alarm cycle and if biometrics available
+        guard !hasAttemptedAutoAuth,
+              alarmManager.state == .alarming,
+              alarmManager.authManager.hasBiometrics else { return }
+
+        hasAttemptedAutoAuth = true
+
+        // Small delay to ensure UI is ready
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            authenticateWithBiometrics()
         }
     }
 }
