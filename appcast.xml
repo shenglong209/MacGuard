@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.4</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.4</link>
+      <sparkle:version>2004</sparkle:version>
+      <sparkle:shortVersionString>2.0.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 2.0.4</h3>
+        <ul><li>Enhanced Bluetooth detection stability</li><li>Improved alarm state transitions</li><li>[ ] Test Bluetooth proximity detection</li><li>[ ] Verify alarm state changes work correctly</li></ul>
+      ]]></description>
+      <pubDate>Fri, 26 Dec 2025 08:56:09 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v2.0.4/MacGuard-2.0.4.dmg"
+        sparkle:edSignature="zuTbaLXYL6JEqK5aQNFpDRQMdCQ3yX3W+xLrbhUAJJsQC3Zu30WQx7tcN2YTRu4kHXowd0U87XL6YuGOY23wDQ=="
+        length="6973882"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 2.0.3</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.3</link>
       <sparkle:version>2003</sparkle:version>
