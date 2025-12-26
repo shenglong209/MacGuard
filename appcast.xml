@@ -6,6 +6,24 @@
     <description>MacGuard anti-theft alarm for macOS</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.5</title>
+      <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.5</link>
+      <sparkle:version>2005</sparkle:version>
+      <sparkle:shortVersionString>2.0.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New in 2.0.5</h3>
+        <ul><li>Implement `SPUStandardUserDriverDelegate` to activate app when Sparkle shows update dialog</li><li>Fixes focus issue where update dialog appears behind other windows for menu bar apps</li><li>[ ] Launch app when new version available</li><li>[ ] Verify update dialog is focused and visible</li></ul>
+      ]]></description>
+      <pubDate>Fri, 26 Dec 2025 09:15:18 +0000</pubDate>
+      <enclosure
+        url="https://github.com/shenglong209/MacGuard/releases/download/v2.0.5/MacGuard-2.0.5.dmg"
+        sparkle:edSignature="dxOs+2XsHWGqiL6mhUicZFGdJc321T2f03L+UNzRpEIpyzx+bZ57gbNYK8SYhyKTGcLFAO8LnrAMoCnbn/PFBQ=="
+        length="6978471"
+        type="application/octet-stream"
+      />
+    </item>
+    <item>
       <title>Version 2.0.4</title>
       <link>https://github.com/shenglong209/MacGuard/releases/tag/v2.0.4</link>
       <sparkle:version>2004</sparkle:version>
