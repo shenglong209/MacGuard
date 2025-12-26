@@ -32,9 +32,35 @@ final class UpdateManager: NSObject, ObservableObject, SPUUpdaterDelegate, SPUSt
 
     // MARK: - SPUStandardUserDriverDelegate
 
-    /// Bring app to front when showing update found dialog
-    @objc func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
-        NSApp.activate(ignoringOtherApps: true)
+    /// Bring app to front when about to show update dialog
+    func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
+        bringToFront()
+    }
+
+    /// Bring app to front when showing update found window
+    func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+        bringToFront()
+    }
+
+    // MARK: - Private
+
+    private func bringToFront() {
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            // Also bring any Sparkle windows to front
+            for window in NSApp.windows where window.isVisible {
+                if String(describing: type(of: window)).contains("SPU") ||
+                   window.title.contains("Update") ||
+                   window.title.contains("update") {
+                    window.makeKeyAndOrderFront(nil)
+                    window.level = .floating
+                    // Reset level after a moment
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        window.level = .normal
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Public Methods
