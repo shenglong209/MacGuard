@@ -4,6 +4,34 @@
 
 import Foundation
 
+struct ArmSession: Equatable {
+    /// Only then may a device's return disarm: a phone in your pocket at a
+    /// manual arm must not disarm a moment later.
+    var trustedDeviceHasLeft: Bool
+}
+
+/// `remaining` is always in `1...total`; an expired countdown is `.alarming`.
+struct Countdown: Equatable {
+    let total: Int
+    private(set) var remaining: Int
+
+    /// `nil` when the alarm should sound immediately.
+    init?(seconds: Int) {
+        guard seconds > 0 else { return nil }
+        total = seconds
+        remaining = seconds
+    }
+
+    func ticked() -> Countdown? {
+        guard remaining > 1 else { return nil }
+        var next = self
+        next.remaining -= 1
+        return next
+    }
+
+    var progress: Double { Double(remaining) / Double(total) }
+}
+
 /// Represents the current state of the alarm system
 enum AlarmState: String, Equatable {
     /// App running, theft mode OFF

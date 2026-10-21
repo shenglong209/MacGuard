@@ -5,107 +5,70 @@
 import Foundation
 import IOKit.ps
 
-/// Protocol for receiving power state change events
-protocol PowerMonitorDelegate: AnyObject {
-    /// Called when power cable is disconnected
-    func powerCableDisconnected()
-    /// Called when power cable is connected
-    func powerCableConnected()
+enum PowerSource: Equatable {
+    case ac, battery
 }
 
 /// Monitors power cable connect/disconnect events
+protocol PowerMonitorDelegate: AnyObject {
+    func powerCableDisconnected()
+}
+
 class PowerMonitor {
     weak var delegate: PowerMonitorDelegate?
 
-    private var runLoopSource: CFRunLoopSource?
-    private var wasOnACPower = true
-    private var isMonitoring = false
-
-    // MARK: - Logging Helper
-
-    private func log(_ category: ActivityLogCategory, _ message: String) {
-        Task { @MainActor in
-            ActivityLogManager.shared.log(category, message)
-        }
-    }
+    private var session: (source: CFRunLoopSource, last: PowerSource)?
 
     // MARK: - Monitoring
 
-    /// Start monitoring power state changes
     func startMonitoring() {
-        guard !isMonitoring else { return }
+        guard session == nil else { return }
 
-        // Check initial state
-        wasOnACPower = isOnACPower()
-
-        // Create power source notification callback
         let context = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-
-        runLoopSource = IOPSNotificationCreateRunLoopSource({ context in
-            guard let context = context else { return }
-            let monitor = Unmanaged<PowerMonitor>.fromOpaque(context).takeUnretainedValue()
-            monitor.handlePowerSourceChange()
+        let source = IOPSNotificationCreateRunLoopSource({ context in
+            guard let context else { return }
+            Unmanaged<PowerMonitor>.fromOpaque(context).takeUnretainedValue().handlePowerSourceChange()
         }, context).takeRetainedValue()
 
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .defaultMode)
-        isMonitoring = true
+        // Common modes: still delivered while a menu or modal is tracking
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        session = (source, Self.currentSource())
 
-        log(.power, "Started monitoring power state")
+        logActivity(.power, "Started monitoring power state")
     }
 
-    /// Stop monitoring power state changes
     func stopMonitoring() {
-        guard isMonitoring else { return }
-
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .defaultMode)
-            runLoopSource = nil
-        }
-
-        isMonitoring = false
-        log(.power, "Stopped monitoring power state")
+        guard let session else { return }
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), session.source, .commonModes)
+        self.session = nil
+        logActivity(.power, "Stopped monitoring power state")
     }
 
     // MARK: - Power State
 
-    /// Check if currently on AC power
-    /// - Returns: true if on AC power, false if on battery
-    func isOnACPower() -> Bool {
+    /// The *providing* source: a UPS reports "AC Power" even after the laptop's cable is pulled.
+    static func currentSource() -> PowerSource {
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef] else {
-            return true // Assume AC if unknown
+              let providing = IOPSGetProvidingPowerSourceType(snapshot)?.takeUnretainedValue() else {
+            return .ac // Assume AC if unknown
         }
+        return (providing as String) == kIOPSACPowerValue ? .ac : .battery
+    }
 
-        for source in sources {
-            if let info = IOPSGetPowerSourceDescription(snapshot, source)?.takeUnretainedValue() as? [String: Any],
-               let powerSource = info[kIOPSPowerSourceStateKey as String] as? String {
-                return powerSource == kIOPSACPowerValue as String
-            }
-        }
-
-        return true
+    /// `nil` when nothing changed (IOKit also notifies on battery-level changes).
+    static func transition(from previous: PowerSource, to current: PowerSource) -> PowerSource? {
+        current == previous ? nil : current
     }
 
     // MARK: - Private
 
     private func handlePowerSourceChange() {
-        let isAC = isOnACPower()
+        guard let previous = session?.last,
+              let source = Self.transition(from: previous, to: Self.currentSource()) else { return }
+        session?.last = source
 
-        if wasOnACPower && !isAC {
-            // Power cable disconnected
-            log(.power, "Power cable disconnected")
-            DispatchQueue.main.async {
-                self.delegate?.powerCableDisconnected()
-            }
-        } else if !wasOnACPower && isAC {
-            // Power cable connected
-            log(.power, "Power cable connected")
-            DispatchQueue.main.async {
-                self.delegate?.powerCableConnected()
-            }
-        }
-
-        wasOnACPower = isAC
+        logActivity(.power, source == .ac ? "Power cable connected" : "Power cable disconnected")
+        if source == .battery { delegate?.powerCableDisconnected() }
     }
 
     deinit {
