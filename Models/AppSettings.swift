@@ -2,6 +2,7 @@
 // MacGuard - Anti-Theft Alarm for macOS
 // Created: 2025-12-18
 
+import AVFoundation
 import SwiftUI
 
 /// Proximity distance presets for trusted device detection
@@ -13,26 +14,21 @@ enum ProximityDistance: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// RSSI threshold for device presence (signal stronger than this = nearby)
-    /// For custom, returns a default - actual value comes from AppSettings
-    var presentThreshold: Int {
+    func thresholds(customDetectionRange: Int) -> ProximityThresholds {
         switch self {
-        case .near: return -60
-        case .medium: return -70
-        case .far: return -80
-        case .custom: return -70  // Default, overridden by AppSettings
+        case .near: return ProximityThresholds(present: -60, away: -70)
+        case .medium: return ProximityThresholds(present: -70, away: -80)
+        case .far: return ProximityThresholds(present: -80, away: -95)
+        case .custom:
+            let center = Self.clampedCustomRange(customDetectionRange)
+            return ProximityThresholds(present: center + 5, away: center - 5)
         }
     }
 
-    /// RSSI threshold for device away (signal weaker than this = away)
-    /// For custom, returns a default - actual value comes from AppSettings
-    var awayThreshold: Int {
-        switch self {
-        case .near: return -70
-        case .medium: return -80
-        case .far: return -95
-        case .custom: return -80  // Default, overridden by AppSettings
-        }
+    static let customRange: ClosedRange<Int> = -100 ... -55
+
+    static func clampedCustomRange(_ raw: Int) -> Int {
+        min(max(raw, customRange.lowerBound), customRange.upperBound)
     }
 
     /// Human-readable description
@@ -99,28 +95,74 @@ enum AlarmSound: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Sound file path
-    var soundPath: String? {
+    var file: PlayableSound? {
         switch self {
         case .dontTouchMyMac:
-            return ResourceBundle.url(forResource: "dont-touch-my-mac", withExtension: "mp3", subdirectory: "Resources")?.path
+            return ResourceBundle.url(forResource: "dont-touch-my-mac", withExtension: "mp3", subdirectory: "Resources")
+                .flatMap(PlayableSound.init(url:))
         case .custom:
             return nil
         default:
-            return "/System/Library/Sounds/\(rawValue).aiff"
+            return PlayableSound(url: URL(fileURLWithPath: "/System/Library/Sounds/\(rawValue).aiff"))
         }
     }
 
-    /// Check if sound file exists
-    var isAvailable: Bool {
-        switch self {
-        case .dontTouchMyMac:
-            return ResourceBundle.url(forResource: "dont-touch-my-mac", withExtension: "mp3", subdirectory: "Resources") != nil
-        case .custom:
-            return true
-        default:
-            return FileManager.default.fileExists(atPath: soundPath ?? "")
-        }
+    /// Computed once: each check opens the file.
+    static let offered: [AlarmSound] = allCases.filter { $0 == .custom || $0.file != nil }
+}
+
+/// A file `AVAudioPlayer` opens, with non-zero length, so a moved or corrupt file can't reach the alarm.
+struct PlayableSound: Equatable {
+    let url: URL
+
+    init?(url: URL) {
+        guard let player = try? AVAudioPlayer(contentsOf: url), player.duration > 0 else { return nil }
+        self.url = url
+    }
+}
+
+enum CountdownDuration: Int, CaseIterable, Identifiable {
+    case immediate = 0
+    case s3 = 3, s5 = 5, s10 = 10, s15 = 15, s30 = 30
+
+    static let `default` = CountdownDuration.s3
+
+    var id: Int { rawValue }
+
+    var countdown: Countdown? { Countdown(seconds: rawValue) }
+
+    var label: String { self == .immediate ? "Immediately" : "\(rawValue) seconds" }
+}
+
+/// Lets the owner walk away, and keeps the arming keystroke from being an intrusion.
+enum ExitDelay: Int, CaseIterable, Identifiable {
+    case s1 = 1, s5 = 5, s10 = 10, s30 = 30
+
+    static let `default` = ExitDelay.s1
+
+    var id: Int { rawValue }
+    var seconds: TimeInterval { TimeInterval(rawValue) }
+    var label: String { rawValue == 1 ? "1 second" : "\(rawValue) seconds" }
+}
+
+enum GracePeriod: Int, CaseIterable, Identifiable {
+    case s5 = 5, s10 = 10, s15 = 15, s30 = 30, s60 = 60
+
+    static let `default` = GracePeriod.s15
+
+    var id: Int { rawValue }
+    var seconds: TimeInterval { TimeInterval(rawValue) }
+    var label: String { "\(rawValue) sec" }
+}
+
+/// A near-silent alarm is not offered.
+struct AlarmVolume: Equatable {
+    static let range: ClosedRange<Double> = 0.5...1.0
+
+    let value: Double
+
+    init(clamping raw: Double) {
+        value = raw.isFinite ? min(max(raw, Self.range.lowerBound), Self.range.upperBound) : Self.range.upperBound
     }
 }
 
@@ -128,169 +170,100 @@ enum AlarmSound: String, CaseIterable, Identifiable {
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
-    // MARK: - Logging Helper
-
-    private func log(_ category: ActivityLogCategory, _ message: String) {
-        Task { @MainActor in
-            ActivityLogManager.shared.log(category, message)
-        }
-    }
 
     // MARK: - Published Settings
 
     @AppStorage("autoLockOnArm") var autoLockOnArm: Bool = false
     @AppStorage("alarmSound") private var alarmSoundRaw: String = AlarmSound.dontTouchMyMac.rawValue
-    @AppStorage("alarmVolume") var alarmVolume: Double = 1.0
-    @AppStorage("customSoundPath") var customSoundPath: String = ""
-    @AppStorage("countdownDuration") var countdownDuration: Int = 3
+    @AppStorage("alarmVolume") private var alarmVolumeRaw: Double = 1.0
+    @AppStorage("customSoundPath") private var customSoundPath: String = ""
+    // Enums parse in AppStorage itself: an unoffered stored value reads as the default.
+    @AppStorage("countdownDuration") var countdownDuration: CountdownDuration = .default
     @AppStorage("lidCloseProtection") private var _lidCloseProtection: Bool = false
-    @AppStorage("proximityDistance") private var proximityDistanceRaw: String = ProximityDistance.medium.rawValue
+    @AppStorage("proximityDistance") var proximityDistance: ProximityDistance = .medium
     @AppStorage("customDetectionRange") var customDetectionRange: Int = -65  // Single value, hysteresis auto-calculated
     @AppStorage("autoArmOnDeviceLeave") var autoArmOnDeviceLeave: Bool = false
-    @AppStorage("autoArmGracePeriod") var autoArmGracePeriod: Int = 15
-    @AppStorage("autoArmMode") private var autoArmModeRaw: String = AutoArmMode.allDevicesAway.rawValue
+    @AppStorage("exitDelay") var exitDelay: ExitDelay = .default
+    @AppStorage("autoArmGracePeriod") var autoArmGracePeriod: GracePeriod = .default
+    @AppStorage("autoArmMode") var autoArmMode: AutoArmMode = .allDevicesAway
 
-    /// Auto-arm trigger mode (all devices away vs any device away)
-    var autoArmMode: AutoArmMode {
-        get { AutoArmMode(rawValue: autoArmModeRaw) ?? .allDevicesAway }
-        set {
-            autoArmModeRaw = newValue.rawValue
-            objectWillChange.send()
-        }
+    var alarmVolume: Double {
+        get { AlarmVolume(clamping: alarmVolumeRaw).value }
+        set { alarmVolumeRaw = AlarmVolume(clamping: newValue).value }
     }
 
-    /// Proximity distance for trusted device detection
-    var proximityDistance: ProximityDistance {
-        get { ProximityDistance(rawValue: proximityDistanceRaw) ?? .medium }
-        set {
-            proximityDistanceRaw = newValue.rawValue
-            objectWillChange.send()
-        }
+    var proximityThresholds: ProximityThresholds {
+        proximityDistance.thresholds(customDetectionRange: customDetectionRange)
     }
 
-    /// Effective present threshold (considers custom setting)
-    /// Hysteresis: nearby threshold is 5 dBm stronger than the detection range
-    var effectivePresentThreshold: Int {
-        if proximityDistance == .custom {
-            return customDetectionRange + 5  // Stronger signal = nearby
-        }
-        return proximityDistance.presentThreshold
-    }
-
-    /// Effective away threshold (considers custom setting)
-    /// Hysteresis: away threshold is 5 dBm weaker than the detection range
-    var effectiveAwayThreshold: Int {
-        if proximityDistance == .custom {
-            return customDetectionRange - 5  // Weaker signal = away
-        }
-        return proximityDistance.awayThreshold
-    }
-
-    /// Lid close protection with pmset control
+    /// Enabling only sticks if the admin prompt succeeds; disabling always clears it.
     var lidCloseProtection: Bool {
         get { _lidCloseProtection }
         set {
-            if newValue && !_lidCloseProtection {
-                // Enabling - ask for admin password
-                if enableDisableSleep() {
-                    _lidCloseProtection = true
-                    objectWillChange.send()
-                }
-                // If failed, don't change the setting
-            } else if !newValue && _lidCloseProtection {
-                // Disabling - ask for admin password
-                disableDisableSleep()
-                _lidCloseProtection = false
-                objectWillChange.send()
-            }
+            guard newValue != _lidCloseProtection else { return }
+            if setDisableSleep(newValue) || !newValue { _lidCloseProtection = newValue }
         }
     }
 
-    /// Enable pmset disablesleep (with admin prompt)
-    private func enableDisableSleep() -> Bool {
-        let script = """
-        do shell script "pmset -a disablesleep 1" with administrator privileges
-        """
-
-        var error: NSDictionary?
-        if let scriptObject = NSAppleScript(source: script) {
-            scriptObject.executeAndReturnError(&error)
-            if error == nil {
-                log(.system, "disablesleep enabled")
-                return true
-            } else {
-                log(.system, "Failed to enable disablesleep: \(error ?? [:])")
-            }
-        }
-        return false
-    }
-
-    /// Disable pmset disablesleep (with admin prompt)
-    private func disableDisableSleep() {
-        let script = """
-        do shell script "pmset -a disablesleep 0" with administrator privileges
-        """
-
-        var error: NSDictionary?
-        if let scriptObject = NSAppleScript(source: script) {
-            scriptObject.executeAndReturnError(&error)
-            if error == nil {
-                log(.system, "disablesleep disabled")
-            } else {
-                log(.system, "Failed to disable disablesleep: \(error ?? [:])")
-            }
-        }
-    }
-
-    /// Reset lid close protection on app exit (no admin prompt, silent)
+    /// On quit. pmset needs root, so this prompts for an admin password too.
     func resetLidCloseProtection() {
         guard _lidCloseProtection else { return }
-
-        // Use silent reset without admin prompt (best effort)
-        let script = """
-        do shell script "pmset -a disablesleep 0" with administrator privileges
-        """
-
-        var error: NSDictionary?
-        if let scriptObject = NSAppleScript(source: script) {
-            scriptObject.executeAndReturnError(&error)
-            if error == nil {
-                log(.system, "disablesleep reset on app exit")
-            }
-        }
+        _ = setDisableSleep(false)
         _lidCloseProtection = false
     }
 
-    /// Selected alarm sound
-    var alarmSound: AlarmSound {
-        get { AlarmSound(rawValue: alarmSoundRaw) ?? .funk }
-        set {
-            alarmSoundRaw = newValue.rawValue
-            objectWillChange.send()
+    private func setDisableSleep(_ on: Bool) -> Bool {
+        var error: NSDictionary?
+        guard let script = NSAppleScript(source: "do shell script \"pmset -a disablesleep \(on ? 1 : 0)\" with administrator privileges") else { return false }
+        script.executeAndReturnError(&error)
+        if let error {
+            logActivity(.system, "Failed to set disablesleep \(on ? 1 : 0): \(error)")
+            return false
         }
+        logActivity(.system, "disablesleep \(on ? "enabled" : "disabled")")
+        return true
     }
 
-    /// Get the actual sound file path (custom or system)
-    var effectiveSoundPath: String? {
-        if alarmSound == .custom {
-            return customSoundPath.isEmpty ? nil : customSoundPath
+    /// `.custom` without a playable file parses to the default.
+    var alarmSound: AlarmSound {
+        get {
+            let sound = AlarmSound(rawValue: alarmSoundRaw) ?? .dontTouchMyMac
+            return sound == .custom && customSound == nil ? .dontTouchMyMac : sound
         }
-        return alarmSound.soundPath
+        set { alarmSoundRaw = newValue.rawValue }
+    }
+
+    /// The stored path, parsed once ("" means none chosen).
+    private var customSoundURL: URL? {
+        customSoundPath.isEmpty ? nil : URL(fileURLWithPath: customSoundPath)
+    }
+
+    private var customSound: PlayableSound? { customSoundURL.flatMap(PlayableSound.init(url:)) }
+
+    var customSoundUnavailable: Bool {
+        alarmSoundRaw == AlarmSound.custom.rawValue && customSound == nil
+    }
+
+    /// `nil` only if even the bundled sound is missing (the caller beeps).
+    var alarmSoundFile: PlayableSound? {
+        (alarmSound == .custom ? customSound : alarmSound.file) ?? AlarmSound.dontTouchMyMac.file
     }
 
     /// Custom sound file name for display
-    var customSoundName: String {
-        guard !customSoundPath.isEmpty else { return "None" }
-        return URL(fileURLWithPath: customSoundPath).lastPathComponent
-    }
+    var customSoundName: String { customSoundURL?.lastPathComponent ?? "None" }
 
     private init() {}
 
+    /// Plays it once, so it can be judged without arming.
+    func chooseSound(_ sound: AlarmSound) {
+        alarmSound = sound
+        previewSound()
+    }
+
     /// Preview the selected alarm sound
     func previewSound() {
-        guard let path = effectiveSoundPath,
-              FileManager.default.fileExists(atPath: path),
-              let sound = NSSound(contentsOfFile: path, byReference: true) else {
+        guard let file = alarmSoundFile,
+              let sound = NSSound(contentsOf: file.url, byReference: true) else {
             NSSound.beep()
             return
         }
@@ -307,9 +280,13 @@ class AppSettings: ObservableObject {
         panel.message = "Select an audio file for the alarm"
 
         if panel.runModal() == .OK, let url = panel.url {
+            guard PlayableSound(url: url) != nil else {
+                logActivity(.system, "Custom sound rejected: '\(url.lastPathComponent)' is not playable audio")
+                return false
+            }
             customSoundPath = url.path
             alarmSound = .custom
-            objectWillChange.send()
+            previewSound()
             return true
         }
         return false
