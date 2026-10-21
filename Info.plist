@@ -10,9 +10,13 @@
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>MacGuard uses Bluetooth to detect your trusted devices and automatically disarm when you're nearby.</string>
 
+    <!-- Camera for the opt-in intruder photo -->
+    <key>NSCameraUsageDescription</key>
+    <string>MacGuard can photograph whoever triggers the alarm. This is off unless you turn it on in Settings.</string>
+
     <!-- Apple Events for volume control -->
     <key>NSAppleEventsUsageDescription</key>
-    <string>MacGuard needs to control system volume to play the alarm at maximum volume.</string>
+    <string>MacGuard sends the alerts you enable through Mail and Messages, and can lock the screen when arming.</string>
 
     <!-- Prevent automatic termination -->
     <key>NSSupportsAutomaticTermination</key>

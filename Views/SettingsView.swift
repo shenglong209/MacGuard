@@ -10,6 +10,9 @@ struct SettingsView: View {
     @ObservedObject var alarmManager: AlarmStateManager
     @ObservedObject private var settings = AppSettings.shared
 
+    /// Read-only unless idle: a trusted device suppresses triggers, so anyone near it could edit.
+    private var isLocked: Bool { alarmManager.state != .idle }
+
     var body: some View {
         VStack(spacing: 0) {
             // Modern header with animated top bar
@@ -18,6 +21,12 @@ struct SettingsView: View {
             Divider()
 
             Form {
+                if isLocked {
+                    Label("Disarm to change settings", systemImage: "lock.fill")
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                }
+
                 // Permissions Section
                 Section {
                     permissionRow(
@@ -72,6 +81,7 @@ struct SettingsView: View {
                         }
                     }
                 }
+                .disabled(isLocked)
 
                 // Security Section
                 Section {
@@ -80,20 +90,28 @@ struct SettingsView: View {
                 } header: {
                     Label("Security", systemImage: "lock.fill")
                 }
+                .disabled(isLocked)
 
                 // Behavior Section
                 Section {
                     behaviorSection
+                    TriggerSettingsView()
                 } header: {
                     Label("Behavior", systemImage: "gearshape.2")
                 }
+                .disabled(isLocked)
+
+                IntruderPhotoSettingsView(camera: .shared).disabled(isLocked)
+                NotificationSettingsSection().disabled(isLocked)
 
                 // Startup Section
                 Section {
                     LaunchAtLoginToggle()
+                    TamperSettingsView()
                 } header: {
                     Label("Startup", systemImage: "power")
                 }
+                .disabled(isLocked)
 
                 // Event Log Section
                 Section {
@@ -131,7 +149,7 @@ struct SettingsView: View {
             Rectangle()
                 .fill(headerBarGradient)
                 .frame(height: 3)
-                .animation(.easeInOut(duration: 0.5), value: alarmManager.state)
+                .animation(.easeInOut(duration: 0.5), value: alarmManager.state.phase)
 
             // Header content
             HStack(spacing: Theme.Spacing.lg) {
@@ -146,7 +164,7 @@ struct SettingsView: View {
                             radius: alarmManager.state != .idle ? 12 : 4,
                             x: 0, y: 2
                         )
-                        .animation(.easeInOut(duration: 0.5), value: alarmManager.state)
+                        .animation(.easeInOut(duration: 0.5), value: alarmManager.state.phase)
                 } else {
                     Image(systemName: "lock.shield.fill")
                         .font(.system(size: 40))
@@ -205,14 +223,14 @@ struct SettingsView: View {
                         .font(.subheadline.weight(.medium))
                         .foregroundColor(alarmManager.state == .idle ? .secondary : Theme.StateColor.armed)
                 }
-                .animation(.easeInOut(duration: 0.3), value: alarmManager.state)
+                .animation(.easeInOut(duration: 0.3), value: alarmManager.state.phase)
 
                 // Quick action button with glass
                 Button {
-                    if alarmManager.state == .idle {
-                        alarmManager.arm()
-                    } else {
-                        alarmManager.disarm()
+                    switch alarmManager.state {
+                    case .idle: alarmManager.arm()
+                    case .arming: alarmManager.cancelArming()
+                    case .armed, .triggered, .alarming: alarmManager.requestDisarm()
                     }
                 } label: {
                     Image(systemName: alarmManager.state == .idle ? "shield" : "shield.fill")
@@ -234,7 +252,7 @@ struct SettingsView: View {
 
     private func simpleTrustedDeviceRow(_ device: TrustedDevice) -> some View {
         let connectionStatus = alarmManager.bluetoothManager.connectionStatus(for: device)
-        let isNearby = device.lastRSSI.map { $0 >= AppSettings.shared.effectiveAwayThreshold } ?? false
+        let isNearby = alarmManager.bluetoothManager.isNearby(device)
 
         return HStack(spacing: Theme.Spacing.md) {
             Image(systemName: device.icon)
@@ -293,16 +311,16 @@ struct SettingsView: View {
             Text("Backup PIN")
             Spacer()
             if alarmManager.authManager.hasPIN {
-                Label("Configured", systemImage: "checkmark.circle.fill")
+                Label("Set", systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .foregroundColor(Theme.StateColor.armed)
-                Button("Change") {
-                    PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
+                Button("Change PIN") {
+                    PINSetupWindowController.shared.show(alarmManager: alarmManager)
                 }
                 .buttonStyle(GlassSecondaryButtonStyle())
             } else {
                 Button("Set PIN") {
-                    PINSetupWindowController.shared.show(authManager: alarmManager.authManager)
+                    PINSetupWindowController.shared.show(alarmManager: alarmManager)
                 }
                 .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
             }
@@ -338,12 +356,9 @@ struct SettingsView: View {
         Toggle("Lock screen when armed", isOn: $settings.autoLockOnArm)
 
         Picker("Countdown duration", selection: $settings.countdownDuration) {
-            Text("Immediately").tag(0)
-            Text("3 seconds").tag(3)
-            Text("5 seconds").tag(5)
-            Text("10 seconds").tag(10)
-            Text("15 seconds").tag(15)
-            Text("30 seconds").tag(30)
+            ForEach(CountdownDuration.allCases) { duration in
+                Text(duration.label).tag(duration)
+            }
         }
 
         // Lid Close Protection with warning
@@ -374,12 +389,28 @@ struct SettingsView: View {
                 if newValue == .custom {
                     _ = settings.selectCustomSound()
                 } else {
-                    settings.alarmSound = newValue
+                    settings.chooseSound(newValue)
                 }
             }
         )) {
-            ForEach(AlarmSound.allCases.filter { $0.isAvailable }) { sound in
+            ForEach(AlarmSound.offered) { sound in
                 Text(sound.rawValue).tag(sound)
+            }
+        }
+
+        if settings.customSoundUnavailable {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                Text("'\(settings.customSoundName)' can't be played - using the default sound")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                Spacer()
+                Button("Choose…") {
+                    _ = settings.selectCustomSound()
+                }
+                .buttonStyle(GlassSecondaryButtonStyle())
             }
         }
 
@@ -403,7 +434,7 @@ struct SettingsView: View {
 
         HStack {
             Text("Volume")
-            Slider(value: $settings.alarmVolume, in: 0.5...1.0)
+            Slider(value: $settings.alarmVolume, in: AlarmVolume.range)
             Button {
                 settings.previewSound()
             } label: {
@@ -432,7 +463,7 @@ struct SettingsView: View {
             }
             Spacer()
             Button("View Log") {
-                ActivityLogWindowController.shared.show()
+                ActivityLogWindowController.shared.show(alarmManager: alarmManager)
             }
             .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
         }
@@ -541,122 +572,82 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - PIN Setup Window Controller
+// MARK: - PIN Setup Window
 
-class PINSetupWindowController: NSObject, NSWindowDelegate {
+@MainActor
+final class PINSetupWindowController {
     static let shared = PINSetupWindowController()
 
-    private var window: NSWindow?
-    private var hostingController: NSHostingController<PINSetupContainerView>?
-    private var viewModel = PINSetupViewModel()
+    private let viewModel = PINSetupViewModel()
+    private var window: UtilityWindow?
 
-    private override init() {
-        super.init()
+    func show(alarmManager: AlarmStateManager) {
+        guard alarmManager.state == .idle else { return }
+        viewModel.reset()
+        window = window ?? UtilityWindow(
+            title: "Set Backup PIN", size: NSSize(width: 300, height: 220), fitsContent: true,
+            onClose: { [viewModel] in viewModel.reset() },
+            content: PINSetupContainerView(viewModel: viewModel, alarmManager: alarmManager,
+                                           onDismiss: { PINSetupWindowController.shared.close() }))
+        window?.show()
     }
 
-    func show(authManager: AuthManager) {
-        viewModel.authManager = authManager
-        viewModel.pin = ""
-        viewModel.confirmPIN = ""
-        viewModel.showError = false
-
-        if window == nil {
-            createWindow()
-        }
-
-        // Temporarily become a regular app to take focus
-        NSApp.setActivationPolicy(.regular)
-
-        // Force app activation and window focus
-        NSApp.activate(ignoringOtherApps: true)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
-
-        // Make first text field first responder after a brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.focusFirstTextField()
-        }
-    }
-
-    private func createWindow() {
-        let view = PINSetupContainerView(viewModel: viewModel, onDismiss: { [weak self] in
-            self?.window?.orderOut(nil)
-            // Revert to accessory app (menu bar only)
-            NSApp.setActivationPolicy(.accessory)
-        })
-        hostingController = NSHostingController(rootView: view)
-
-        let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 220),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-
-        newWindow.contentViewController = hostingController
-        newWindow.title = "Set Backup PIN"
-        newWindow.isReleasedWhenClosed = false
-        newWindow.delegate = self
-
-        window = newWindow
-    }
-
-    private func focusFirstTextField() {
-        // Find and focus the first text field in the window
-        guard let contentView = window?.contentView else { return }
-        if let textField = findFirstTextField(in: contentView) {
-            window?.makeFirstResponder(textField)
-        }
-    }
-
-    private func findFirstTextField(in view: NSView) -> NSTextField? {
-        for subview in view.subviews {
-            if let textField = subview as? NSTextField, textField.isEditable {
-                return textField
-            }
-            if let found = findFirstTextField(in: subview) {
-                return found
-            }
-        }
-        return nil
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        viewModel.pin = ""
-        viewModel.confirmPIN = ""
-        // Revert to accessory app when window closes via X button
-        NSApp.setActivationPolicy(.accessory)
+    func close() {
+        window?.close()
     }
 }
 
-class PINSetupViewModel: ObservableObject {
-    var authManager: AuthManager?
+/// What the PIN window says under the fields.
+enum PINFeedback: Equatable {
+    case none
+    case error(String)
+    /// Saving `accepted` again keeps it despite the weakness.
+    case weak(PINWeakness, accepted: String)
+}
+
+final class PINSetupViewModel: ObservableObject {
     @Published var pin = ""
     @Published var confirmPIN = ""
-    @Published var showError = false
-    @Published var errorMessage = ""
+    @Published var feedback = PINFeedback.none
+
+    func reset() {
+        pin = ""
+        confirmPIN = ""
+        feedback = .none
+    }
 }
 
 struct PINSetupContainerView: View {
     @ObservedObject var viewModel: PINSetupViewModel
+    @ObservedObject var alarmManager: AlarmStateManager
     let onDismiss: () -> Void
 
     var body: some View {
         VStack(spacing: Theme.Spacing.lg) {
-            Text("Set Backup PIN")
+            Text(alarmManager.authManager.hasPIN ? "Change Backup PIN" : "Set Backup PIN")
                 .font(.headline)
 
-            // Use native AppKit text field for reliable input
-            SecureTextFieldWrapper(text: $viewModel.pin, placeholder: "Enter PIN (4-8 digits)")
+            NativeSecureField(text: $viewModel.pin, placeholder: "Enter PIN (4-8 digits)", focusOnAppear: true)
                 .frame(width: 200, height: 24)
 
-            SecureTextFieldWrapper(text: $viewModel.confirmPIN, placeholder: "Confirm PIN")
+            NativeSecureField(text: $viewModel.confirmPIN, placeholder: "Confirm PIN")
                 .frame(width: 200, height: 24)
 
-            if viewModel.showError {
-                Text(viewModel.errorMessage)
-                    .foregroundColor(Theme.StateColor.alarming)
-                    .font(.caption)
+            switch viewModel.feedback {
+            case .none:
+                EmptyView()
+            case .error(let message):
+                feedbackLine(message)
+            case .weak(let weakness, _):
+                if weakness == .luggage, let gif = AnimatedGIF.luggage {
+                    gif.frame(width: 240, height: 127)
+                } else {
+                    Text(weakness.message)
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                feedbackLine("Save again to use it anyway.")
             }
 
             HStack {
@@ -676,66 +667,61 @@ struct PINSetupContainerView: View {
         .frame(width: 280)
     }
 
+    private func feedbackLine(_ message: String) -> some View {
+        Text(message)
+            .foregroundColor(Theme.StateColor.alarming)
+            .font(.caption)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     private func savePIN() {
-        guard viewModel.pin.count >= 4, viewModel.pin.count <= 8 else {
-            viewModel.errorMessage = "PIN must be 4-8 characters"
-            viewModel.showError = true
+        let accepted: String? = if case .weak(_, let accepted) = viewModel.feedback { accepted } else { nil }
+        guard let pin = PIN(viewModel.pin) else {
+            viewModel.feedback = .error("PIN must be 4-8 digits")
             return
         }
-
         guard viewModel.pin == viewModel.confirmPIN else {
-            viewModel.errorMessage = "PINs don't match"
-            viewModel.showError = true
+            viewModel.feedback = .error("PINs don't match")
             viewModel.confirmPIN = ""
             return
         }
-
-        if viewModel.authManager?.savePIN(viewModel.pin) == true {
+        if let weakness = pin.weakness, accepted != viewModel.pin {
+            viewModel.feedback = .weak(weakness, accepted: viewModel.pin)
+            return
+        }
+        // Re-checked at save time: the window may have been open when arming.
+        guard alarmManager.state == .idle else {
+            viewModel.feedback = .error("Disarm to change the PIN")
+            return
+        }
+        if alarmManager.authManager.savePIN(pin) {
             onDismiss()
         } else {
-            viewModel.errorMessage = "Failed to save PIN"
-            viewModel.showError = true
+            viewModel.feedback = .error("Failed to save PIN")
         }
     }
 }
 
-// MARK: - Native AppKit SecureTextField Wrapper
+/// An animated GIF. `luggage` is a user-supplied file, never bundled.
+struct AnimatedGIF: NSViewRepresentable {
+    let url: URL
 
-struct SecureTextFieldWrapper: NSViewRepresentable {
-    @Binding var text: String
-    var placeholder: String
-
-    func makeNSView(context: Context) -> NSSecureTextField {
-        let textField = NSSecureTextField()
-        textField.placeholderString = placeholder
-        textField.delegate = context.coordinator
-        textField.bezelStyle = .roundedBezel
-        return textField
+    static var luggage: AnimatedGIF? {
+        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MacGuard/luggage.gif")
+        return FileManager.default.fileExists(atPath: url.path) ? AnimatedGIF(url: url) : nil
     }
 
-    func updateNSView(_ nsView: NSSecureTextField, context: Context) {
-        if nsView.stringValue != text {
-            nsView.stringValue = text
-        }
+    func makeNSView(context: Context) -> NSImageView {
+        let view = NSImageView()
+        view.image = NSImage(contentsOf: url)
+        view.animates = true
+        view.imageScaling = .scaleProportionallyUpOrDown
+        return view
     }
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, NSTextFieldDelegate {
-        var parent: SecureTextFieldWrapper
-
-        init(_ parent: SecureTextFieldWrapper) {
-            self.parent = parent
-        }
-
-        func controlTextDidChange(_ obj: Notification) {
-            if let textField = obj.object as? NSTextField {
-                parent.text = textField.stringValue
-            }
-        }
-    }
+    func updateNSView(_ nsView: NSImageView, context: Context) {}
 }
 
 // MARK: - Launch at Login Toggle
@@ -766,7 +752,7 @@ enum LaunchAtLoginManager {
                     try SMAppService.mainApp.unregister()
                 }
             } catch {
-                Task { @MainActor in ActivityLogManager.shared.log(.system, "Failed to update launch at login: \(error)") }
+                logActivity(.system, "Failed to update launch at login: \(error)")
             }
         }
     }

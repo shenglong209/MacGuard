@@ -6,79 +6,26 @@ import SwiftUI
 import CoreBluetooth
 import IOBluetooth
 
-/// Window controller for device scanner
-class DeviceScannerWindowController: NSObject, NSWindowDelegate {
+@MainActor
+final class DeviceScannerWindowController {
     static let shared = DeviceScannerWindowController()
 
-    private var window: NSWindow?
-    private var hostingController: NSHostingController<DeviceScannerContainerView>?
-    private var viewModel = DeviceScannerViewModel()
-    private weak var parentWindow: NSWindow?
-
-    private override init() {
-        super.init()
-    }
+    private let viewModel = DeviceScannerViewModel()
+    private var window: UtilityWindow?
 
     func show(bluetoothManager: BluetoothProximityManager) {
         viewModel.bluetoothManager = bluetoothManager
-        viewModel.discoveredDevices = []
-        viewModel.isScanning = false
-        // Track parent window for refocus
-        self.parentWindow = NSApp.keyWindow
-
-        if window == nil {
-            createWindow()
-        }
-
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
-
-        // Start scanning
+        window = window ?? UtilityWindow(
+            title: "Scan for Devices", size: NSSize(width: 350, height: 400), transparent: true,
+            onClose: { [viewModel] in viewModel.stopScanning() },
+            content: DeviceScannerContainerView(viewModel: viewModel,
+                                                onDismiss: { DeviceScannerWindowController.shared.close() }))
+        window?.show()
         viewModel.startScanning()
     }
 
-    private func createWindow() {
-        let view = DeviceScannerContainerView(viewModel: viewModel, onDismiss: { [weak self] in
-            self?.close()
-        })
-        hostingController = NSHostingController(rootView: view)
-
-        let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 350, height: 400),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-
-        // Enable transparency for glass effects
-        newWindow.isOpaque = false
-        newWindow.backgroundColor = .clear
-
-        newWindow.contentViewController = hostingController
-        newWindow.title = "Scan for Devices"
-        newWindow.isReleasedWhenClosed = false
-        newWindow.delegate = self
-
-        window = newWindow
-    }
-
-    private func close() {
-        viewModel.stopScanning()
-        window?.orderOut(nil)
-        refocusParent()
-    }
-
-    private func refocusParent() {
-        if let parent = parentWindow, parent.isVisible {
-            parent.makeKeyAndOrderFront(nil)
-        }
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        viewModel.stopScanning()
-        refocusParent()
+    func close() {
+        window?.close()
     }
 }
 
@@ -89,13 +36,14 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
     @Published var isScanning = false
 
     private var centralManager: CBCentralManager?
-    private var bleDeviceUUIDs: Set<UUID> = []  // Track which devices were found via BLE
+    /// Names are attacker-controlled: one seen from several peripherals never binds a device.
+    private var blePeripheralsByName: [String: Set<UUID>] = [:]
 
     func startScanning() {
         guard !isScanning else { return }
         isScanning = true
         discoveredDevices = []
-        bleDeviceUUIDs = []
+        blePeripheralsByName = [:]
 
         // First, load all paired devices from IOBluetooth (Classic + BLE)
         loadPairedDevices()
@@ -115,17 +63,17 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
 
             // Create discovered device with IOBluetooth data
             let device = DiscoveredDevice(
-                id: UUID(),  // Generate new UUID (will be replaced if found via BLE)
+                id: UUID(),
                 name: name,
-                rssi: ioDevice.isConnected() ? Int(ioDevice.rawRSSI()) : -80,
+                // Display/sort estimate only; -80 when no real reading is available
+                rssi: (ioDevice.isConnected() ? RSSI(Int(ioDevice.rawRSSI()))?.dBm : nil) ?? -80,
                 isPaired: true,
-                bluetoothAddress: ioDevice.addressString,
-                isClassicBluetooth: true,  // Assume classic until proven BLE
+                classicAddress: ioDevice.addressString.flatMap(BluetoothAddress.init),
                 isConnected: ioDevice.isConnected()
             )
 
             discoveredDevices.append(device)
-            Task { @MainActor in ActivityLogManager.shared.log(.bluetooth, "Paired device: \(name) (addr: \(ioDevice.addressString ?? "?"), connected: \(ioDevice.isConnected()))") }
+            logActivity(.bluetooth, "Paired device: \(name) (addr: \(ioDevice.addressString ?? "?"), connected: \(ioDevice.isConnected()))")
         }
 
         // Sort by connection status, then by signal strength
@@ -141,35 +89,23 @@ class DeviceScannerViewModel: NSObject, ObservableObject {
     func selectDevice(_ device: DiscoveredDevice) {
         guard let bluetoothManager = bluetoothManager else { return }
 
-        // Create a TrustedDevice with appropriate type
-        let trustedDevice = TrustedDevice(
-            id: device.id,
-            name: device.name,
-            bluetoothAddress: device.bluetoothAddress,
-            isClassicBluetooth: device.isClassicBluetooth
-        )
+        // A Classic device without an address could never be detected
+        guard let transport = device.transport else {
+            logActivity(.bluetooth, "Cannot trust \(device.name): no BLE match and no Bluetooth address")
+            return
+        }
+        let trustedDevice = TrustedDevice(id: device.trustedID, name: device.name, transport: transport)
 
         // Add device via BluetoothProximityManager
         let added = bluetoothManager.addTrustedDevice(trustedDevice)
         if added {
-            Task { @MainActor in ActivityLogManager.shared.log(.bluetooth, "Added device: \(device.name) (classic: \(device.isClassicBluetooth))") }
+            logActivity(.bluetooth, "Added device: \(device.name) (classic: \(device.isClassicBluetooth))")
         }
     }
 
-    /// Check if device is already trusted
-    func isDeviceAlreadyTrusted(_ device: DiscoveredDevice) -> Bool {
-        guard let manager = bluetoothManager else { return false }
-
-        // Check by ID or Bluetooth address
-        return manager.trustedDevices.contains {
-            $0.id == device.id ||
-            (device.bluetoothAddress != nil && $0.bluetoothAddress == device.bluetoothAddress)
-        }
-    }
-
-    /// Check if max devices reached
-    var isMaxDevicesReached: Bool {
-        (bluetoothManager?.trustedDevices.count ?? 0) >= 10
+    /// Why `device` can't be added, if it can't (the manager's one rule).
+    func refusal(for device: DiscoveredDevice) -> BluetoothProximityManager.Refusal? {
+        bluetoothManager?.admission(of: device.trustedID, classicAddress: device.classicAddress)
     }
 
     private func sortDevices() {
@@ -192,7 +128,7 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
                 withServices: nil,
                 options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
             )
-            Task { @MainActor in ActivityLogManager.shared.log(.bluetooth, "Started BLE scanning to identify device types") }
+            logActivity(.bluetooth, "Started BLE scanning to identify device types")
         }
     }
 
@@ -205,21 +141,26 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
         guard let name = peripheral.name, !name.isEmpty else { return }
         guard RSSI.intValue > -90 else { return }
 
+        let key = name.lowercased()
+        let peripherals = blePeripheralsByName[key, default: []].union([peripheral.identifier])
+        blePeripheralsByName[key] = peripherals
+
         // Find matching device in our paired list by name
         // Only update existing paired devices - ignore unpaired BLE devices
-        if let index = discoveredDevices.firstIndex(where: {
-            $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
-        }) {
+        if let index = discoveredDevices.firstIndex(where: { $0.name.lowercased() == key }) {
             var device = discoveredDevices[index]
 
-            // Device found via BLE scan - it supports BLE RSSI tracking
-            // Update to use BLE (even if it was initially loaded from IOBluetooth)
-            device.id = peripheral.identifier
-            device.rssi = RSSI.intValue
-            device.isClassicBluetooth = false  // Supports BLE
+            if peripherals.count == 1 {
+                // Exactly one peripheral advertises this name: track it via BLE RSSI
+                device.blePeripheralID = peripheral.identifier
+                device.rssi = RSSI.intValue
+                logActivity(.bluetooth, "Device \(name) found via BLE, UUID: \(peripheral.identifier)")
+            } else if device.blePeripheralID != nil {
+                // Another peripheral claims the same name: refuse to guess
+                device.blePeripheralID = nil
+                logActivity(.bluetooth, "Multiple BLE peripherals named \(name) - keeping Classic tracking")
+            }
             discoveredDevices[index] = device
-            bleDeviceUUIDs.insert(peripheral.identifier)
-            Task { @MainActor in ActivityLogManager.shared.log(.bluetooth, "Device \(name) found via BLE, UUID: \(peripheral.identifier)") }
         }
         // Note: Unpaired BLE devices are intentionally ignored - only paired devices shown
 
@@ -231,13 +172,24 @@ extension DeviceScannerViewModel: CBCentralManagerDelegate {
 
 /// Discovered device model
 struct DiscoveredDevice: Identifiable {
-    var id: UUID
+    let id: UUID
     let name: String
     var rssi: Int
     let isPaired: Bool
-    let bluetoothAddress: String?
-    var isClassicBluetooth: Bool
+    let classicAddress: BluetoothAddress?
+    /// Set only while exactly one BLE peripheral advertises this name
+    var blePeripheralID: UUID? = nil
     var isConnected: Bool
+
+    var isClassicBluetooth: Bool { blePeripheralID == nil }
+
+    var trustedID: UUID { blePeripheralID ?? id }
+
+    /// `nil` when the device cannot be tracked at all
+    var transport: TrustedDevice.Transport? {
+        if blePeripheralID != nil { return .ble }
+        return classicAddress.map { .classic(address: $0) }
+    }
 }
 
 /// Container view with glass styling
@@ -354,11 +306,11 @@ struct DeviceScannerContainerView: View {
         ScrollView {
             LazyVStack(spacing: Theme.Spacing.sm) {
                 ForEach(viewModel.discoveredDevices) { device in
-                    let isAlreadyAdded = viewModel.isDeviceAlreadyTrusted(device)
+                    let refusal = viewModel.refusal(for: device)
                     DeviceRowButton(
                         device: device,
-                        isAlreadyAdded: isAlreadyAdded,
-                        isDisabled: isAlreadyAdded || viewModel.isMaxDevicesReached
+                        isAlreadyAdded: refusal == .alreadyTrusted,
+                        isDisabled: refusal != nil
                     ) {
                         viewModel.selectDevice(device)
                         onDismiss()
