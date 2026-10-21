@@ -154,8 +154,8 @@ struct CountdownOverlayView: View {
     }
 
     private var ringProgress: CGFloat {
-        guard AppSettings.shared.countdownDuration > 0 else { return 0 }
-        return CGFloat(alarmManager.countdownSeconds) / CGFloat(AppSettings.shared.countdownDuration)
+        guard AppSettings.shared.countdownDuration.rawValue > 0 else { return 0 }
+        return CGFloat(alarmManager.countdownSeconds) / CGFloat(AppSettings.shared.countdownDuration.rawValue)
     }
 
     // MARK: - Auth Buttons

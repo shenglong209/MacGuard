@@ -44,7 +44,7 @@ struct MacGuardApp: App {
 
 /// Custom menu bar icon view with state-based color tint
 struct MenuBarIconView: View {
-    let state: AlarmState
+    let state: LegacyAlarmState
 
     var body: some View {
         Image(systemName: iconName)
