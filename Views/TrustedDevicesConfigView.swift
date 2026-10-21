@@ -4,75 +4,22 @@
 
 import SwiftUI
 
-/// Window controller for trusted devices configuration
-class TrustedDevicesConfigWindowController: NSObject, NSWindowDelegate {
+@MainActor
+final class TrustedDevicesConfigWindowController {
     static let shared = TrustedDevicesConfigWindowController()
 
-    private var window: NSWindow?
-    private var hostingController: NSHostingController<TrustedDevicesConfigContainerView>?
-    private var bluetoothManager: BluetoothProximityManager?
-    private weak var parentWindow: NSWindow?
-
-    private override init() {
-        super.init()
-    }
+    private var window: UtilityWindow?
 
     func show(bluetoothManager: BluetoothProximityManager) {
-        self.bluetoothManager = bluetoothManager
-        // Track parent window for refocus
-        self.parentWindow = NSApp.keyWindow
-
-        if window == nil {
-            createWindow()
-        }
-
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
+        window = window ?? UtilityWindow(
+            title: "Trusted Devices", size: NSSize(width: 450, height: 500), transparent: true,
+            content: TrustedDevicesConfigContainerView(bluetoothManager: bluetoothManager,
+                                                       onDismiss: { TrustedDevicesConfigWindowController.shared.close() }))
+        window?.show()
     }
 
-    private func createWindow() {
-        guard let bluetoothManager = bluetoothManager else { return }
-
-        let view = TrustedDevicesConfigContainerView(
-            bluetoothManager: bluetoothManager,
-            onDismiss: { [weak self] in
-                self?.close()
-            }
-        )
-        hostingController = NSHostingController(rootView: view)
-
-        let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 450, height: 500),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-
-        newWindow.isOpaque = false
-        newWindow.backgroundColor = .clear
-        newWindow.contentViewController = hostingController
-        newWindow.title = "Trusted Devices"
-        newWindow.isReleasedWhenClosed = false
-        newWindow.delegate = self
-
-        window = newWindow
-    }
-
-    private func close() {
-        window?.orderOut(nil)
-        refocusParent()
-    }
-
-    private func refocusParent() {
-        if let parent = parentWindow, parent.isVisible {
-            parent.makeKeyAndOrderFront(nil)
-        }
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        refocusParent()
+    func close() {
+        window?.close()
     }
 }
 
@@ -197,7 +144,7 @@ struct TrustedDevicesConfigContainerView: View {
 
     private func deviceRow(_ device: TrustedDevice) -> some View {
         let connectionStatus = bluetoothManager.connectionStatus(for: device)
-        let isNearby = device.lastRSSI.map { $0 >= AppSettings.shared.effectiveAwayThreshold } ?? false
+        let isNearby = bluetoothManager.isNearby(device)
 
         return HStack(spacing: Theme.Spacing.md) {
             // Device icon
@@ -230,7 +177,7 @@ struct TrustedDevicesConfigContainerView: View {
                         .font(.caption)
                         .foregroundColor(connectionStatus == .connected ? Theme.StateColor.armed : .secondary)
 
-                    if let rssi = device.lastRSSI {
+                    if let rssi = bluetoothManager.lastObservation(for: device)?.rssi?.dBm {
                         Text("•")
                             .foregroundColor(.secondary)
                         Text("\(rssi) dBm")
@@ -321,11 +268,9 @@ struct TrustedDevicesConfigContainerView: View {
                     Text("Grace period")
                     Spacer()
                     Picker("", selection: $settings.autoArmGracePeriod) {
-                        Text("5 sec").tag(5)
-                        Text("10 sec").tag(10)
-                        Text("15 sec").tag(15)
-                        Text("30 sec").tag(30)
-                        Text("60 sec").tag(60)
+                        ForEach(GracePeriod.allCases) { period in
+                            Text(period.label).tag(period)
+                        }
                     }
                     .pickerStyle(.menu)
                     .frame(width: 100)
@@ -377,7 +322,7 @@ struct TrustedDevicesConfigContainerView: View {
                             get: { Double(settings.customDetectionRange) },
                             set: { settings.customDetectionRange = Int($0) }
                         ),
-                        in: -100...(-55),
+                        in: Double(ProximityDistance.customRange.lowerBound)...Double(ProximityDistance.customRange.upperBound),
                         step: 5
 
                     )
@@ -431,9 +376,9 @@ struct TrustedDevicesConfigContainerView: View {
         .glassBorder(cornerRadius: Theme.CornerRadius.md)
     }
 
-    /// User-friendly range description based on awayThreshold (slider - 5)
+    /// User-friendly range description based on the effective away threshold
     private var rangeDescription: String {
-        let awayThreshold = settings.customDetectionRange - 5  // Actual detection threshold
+        let awayThreshold = settings.proximityThresholds.away
         if awayThreshold >= -70 { return "\(settings.customDetectionRange)dBm [~1-2m (Near)]" }
         if awayThreshold >= -80 { return "\(settings.customDetectionRange)dBm [~3-5m (Medium)]" }
         if awayThreshold >= -95 { return "\(settings.customDetectionRange)dBm [~7-10m (Far)]" }
@@ -443,7 +388,7 @@ struct TrustedDevicesConfigContainerView: View {
     /// Get the strongest RSSI from connected devices (for reference)
     private var nearestDeviceRSSI: Int? {
         bluetoothManager.trustedDevices
-            .compactMap { $0.lastRSSI }
+            .compactMap { bluetoothManager.lastObservation(for: $0)?.rssi?.dBm }
             .max()
     }
 
