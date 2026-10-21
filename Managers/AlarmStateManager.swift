@@ -11,7 +11,7 @@ import CoreBluetooth
 class AlarmStateManager: ObservableObject {
     // MARK: - Published Properties
 
-    @Published private(set) var state: AlarmState = .idle
+    @Published private(set) var state: LegacyAlarmState = .idle
     @Published var countdownSeconds: Int = 3
     @Published var hasAccessibilityPermission = false
 
@@ -49,7 +49,16 @@ class AlarmStateManager: ObservableObject {
         inputMonitor.delegate = self
         sleepMonitor.delegate = self
         powerMonitor.delegate = self
-        bluetoothManager.delegate = self
+        bluetoothManager.onInput = { [weak self] input in
+            MainActor.assumeIsolated {
+                switch input {
+                case .trustedDeviceNearby(let name): self?.trustedDeviceNearby(name)
+                case .trustedDeviceAway(let name): self?.trustedDeviceAway(name)
+                case .allTrustedDevicesAway: self?.allTrustedDevicesAway()
+                default: break
+                }
+            }
+        }
         checkPermissions()
         startPermissionPolling()
 
@@ -210,11 +219,11 @@ class AlarmStateManager: ObservableObject {
     /// Attempt to disarm with biometric authentication
     /// - Parameter completion: Called with success status
     func attemptBiometricDisarm(completion: @escaping (Bool) -> Void) {
-        authManager.authenticateWithBiometrics { [weak self] success, error in
-            if success {
-                self?.disarm(reason: "Disarmed via Touch ID")
+        authManager.authenticate { [weak self] proof in
+            if proof != nil {
+                self?.disarm(reason: "Disarmed via Touch ID / password")
             }
-            completion(success)
+            completion(proof != nil)
         }
     }
 
@@ -222,7 +231,7 @@ class AlarmStateManager: ObservableObject {
     /// - Parameter pin: The entered PIN
     /// - Returns: true if PIN is correct and alarm is disarmed
     func attemptPINDisarm(_ pin: String) -> Bool {
-        if authManager.validatePIN(pin) {
+        if case .accepted = authManager.verifyPIN(pin) {
             disarm(reason: "Disarmed via PIN")
             return true
         }
@@ -245,7 +254,7 @@ class AlarmStateManager: ObservableObject {
             ActivityLogManager.shared.log(.bluetooth, "Some devices nearby but 'any away' mode - proceeding with trigger")
         }
 
-        let duration = AppSettings.shared.countdownDuration
+        let duration = AppSettings.shared.countdownDuration.rawValue
         countdownSeconds = duration
 
         // Show fullscreen overlay
@@ -314,7 +323,7 @@ class AlarmStateManager: ObservableObject {
 
     private func startAutoArmTimer() {
         autoArmTimer?.invalidate()
-        let delay = AppSettings.shared.autoArmGracePeriod
+        let delay = AppSettings.shared.autoArmGracePeriod.rawValue
         ActivityLogManager.shared.log(.system, "Auto-arm timer started (\(delay)s grace period)")
 
         autoArmTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delay), repeats: false) { [weak self] _ in
@@ -354,21 +363,10 @@ class AlarmStateManager: ObservableObject {
 // MARK: - InputMonitorDelegate
 
 extension AlarmStateManager: InputMonitorDelegate {
-    nonisolated func inputDetected(eventType: CGEventType) {
+    nonisolated func inputDetected(_ input: IntrusionInput) {
         Task { @MainActor in
             guard self.state == .armed else { return }
-
-            // Log event type
-            let eventName: String
-            switch eventType {
-            case .keyDown: eventName = "keyboard"
-            case .leftMouseDown, .rightMouseDown, .otherMouseDown: eventName = "mouse click"
-            case .mouseMoved: eventName = "mouse move"
-            case .scrollWheel: eventName = "scroll/touchpad"
-            default: eventName = "unknown"
-            }
-            ActivityLogManager.shared.log(.input, "Input detected: \(eventName)")
-
+            ActivityLogManager.shared.log(.input, "Input detected: \(input.label)")
             self.trigger()
         }
     }
@@ -404,26 +402,18 @@ extension AlarmStateManager: PowerMonitorDelegate {
     nonisolated func powerCableDisconnected() {
         Task { @MainActor in
             guard self.state == .armed else { return }
-            // Power disconnect = start countdown
-            ActivityLogManager.shared.log(.power, "Power cable disconnected - starting countdown")
             self.trigger()
-        }
-    }
-
-    nonisolated func powerCableConnected() {
-        Task { @MainActor in
-            ActivityLogManager.shared.log(.power, "Power cable connected")
         }
     }
 }
 
 // MARK: - BluetoothProximityDelegate
 
-extension AlarmStateManager: BluetoothProximityDelegate {
-    nonisolated func trustedDeviceNearby(_ device: TrustedDevice) {
+extension AlarmStateManager {
+    func trustedDeviceNearby(_ name: String) {
         Task { @MainActor in
             // Cancel pending auto-arm (always, regardless of mode)
-            self.cancelAutoArmTimer(reason: "Auto-arm cancelled - '\(device.name)' detected nearby")
+            self.cancelAutoArmTimer(reason: "Auto-arm cancelled - '\(name)' detected nearby")
 
             // Auto-disarm logic depends on mode
             guard self.state == .armed || self.state == .triggered || self.state == .alarming else { return }
@@ -432,7 +422,7 @@ extension AlarmStateManager: BluetoothProximityDelegate {
             // If manually armed with device present, device must leave first before auto-disarm applies
             guard self.wasAutoArmed else {
                 // Manual arm - don't auto-disarm, just log
-                ActivityLogManager.shared.log(.bluetooth, "Device '\(device.name)' nearby but manual arm - not auto-disarming")
+                ActivityLogManager.shared.log(.bluetooth, "Device '\(name)' nearby but manual arm - not auto-disarming")
                 return
             }
 
@@ -448,14 +438,14 @@ extension AlarmStateManager: BluetoothProximityDelegate {
                 }
             } else {
                 // "All devices away" mode: any device returning disarms
-                self.disarm(reason: "Disarmed via trusted device '\(device.name)'")
+                self.disarm(reason: "Disarmed via trusted device '\(name)'")
             }
         }
     }
 
-    nonisolated func trustedDeviceAway(_ device: TrustedDevice) {
+    func trustedDeviceAway(_ name: String) {
         Task { @MainActor in
-            ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(device.name)' left proximity")
+            ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(name)' left proximity")
 
             // If armed and device leaves, enable auto-disarm on return
             // (device actually left, so return should disarm)
@@ -482,7 +472,7 @@ extension AlarmStateManager: BluetoothProximityDelegate {
         }
     }
 
-    nonisolated func allTrustedDevicesAway() {
+    func allTrustedDevicesAway() {
         Task { @MainActor in
             guard AppSettings.shared.autoArmOnDeviceLeave,
                   AppSettings.shared.autoArmMode == .allDevicesAway,
@@ -499,13 +489,4 @@ extension AlarmStateManager: BluetoothProximityDelegate {
         }
     }
 
-    nonisolated func bluetoothStateChanged(_ state: CBManagerState) {
-        Task { @MainActor in
-            if state == .poweredOff {
-                ActivityLogManager.shared.log(.bluetooth, "Bluetooth turned off")
-            } else if state == .poweredOn {
-                ActivityLogManager.shared.log(.bluetooth, "Bluetooth turned on")
-            }
-        }
-    }
 }
