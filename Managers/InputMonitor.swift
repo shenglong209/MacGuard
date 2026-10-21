@@ -5,44 +5,65 @@
 import Cocoa
 import ApplicationServices
 
-/// Protocol for receiving input detection events
-protocol InputMonitorDelegate: AnyObject {
-    func inputDetected(eventType: CGEventType)
+/// User input that counts as an intrusion, parsed from raw `CGEventType`s at the boundary.
+enum IntrusionInput: CaseIterable {
+    case keyboard, mediaKey, modifier, click, drag, pointerMove, scroll
+
+    /// NX_SYSDEFINED (media, volume, brightness keys); not a named `CGEventType`.
+    private static let systemDefinedRawValue: UInt32 = 14
+
+    /// The tap's event mask is derived from these, so mask and parser cannot disagree.
+    var eventTypeRawValues: [UInt32] {
+        switch self {
+        case .keyboard: return [CGEventType.keyDown.rawValue]
+        case .mediaKey: return [Self.systemDefinedRawValue]
+        case .modifier: return [CGEventType.flagsChanged.rawValue]   // ⌘, ⌥, fn, ... alone
+        case .click: return [CGEventType.leftMouseDown, .rightMouseDown, .otherMouseDown].map(\.rawValue)
+        case .drag: return [CGEventType.leftMouseDragged, .rightMouseDragged, .otherMouseDragged].map(\.rawValue)
+        case .pointerMove: return [CGEventType.mouseMoved.rawValue]
+        case .scroll: return [CGEventType.scrollWheel.rawValue]
+        }
+    }
+
+    init?(_ type: CGEventType) {
+        guard let input = Self.allCases.first(where: { $0.eventTypeRawValues.contains(type.rawValue) }) else {
+            return nil
+        }
+        self = input
+    }
+
+    var label: String {
+        switch self {
+        case .keyboard: return "keyboard"
+        case .mediaKey: return "media/system key"
+        case .modifier: return "modifier key"
+        case .click: return "mouse click"
+        case .drag: return "mouse drag"
+        case .pointerMove: return "mouse move"
+        case .scroll: return "scroll/touchpad"
+        }
+    }
+
+    static let eventMask: CGEventMask = allCases
+        .flatMap(\.eventTypeRawValues)
+        .reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1) }
 }
 
 /// Monitors global keyboard, mouse, and touchpad input using CGEventTap
 /// Requires Accessibility permission
+protocol InputMonitorDelegate: AnyObject {
+    func inputDetected(_ input: IntrusionInput)
+}
+
 class InputMonitor {
     weak var delegate: InputMonitorDelegate?
 
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
-    private var isMonitoring = false
+    private var tap: (port: CFMachPort, source: CFRunLoopSource)?
 
     // Debouncing to prevent event spam
     private var lastEventTime: Date = .distantPast
     private let debounceInterval: TimeInterval = 0.5
 
-    // MARK: - Logging Helper
-
-    private func log(_ category: ActivityLogCategory, _ message: String) {
-        Task { @MainActor in
-            ActivityLogManager.shared.log(category, message)
-        }
-    }
-
-    // Event types to monitor
-    private static let eventMask: CGEventMask = {
-        let types: [CGEventType] = [
-            .keyDown,
-            .leftMouseDown,
-            .rightMouseDown,
-            .otherMouseDown,
-            .mouseMoved,
-            .scrollWheel
-        ]
-        return types.reduce(0) { $0 | (1 << $1.rawValue) }
-    }()
 
     // MARK: - Permission Check
 
@@ -67,83 +88,62 @@ class InputMonitor {
             return false
         }
 
-        guard !isMonitoring else { return true }
+        guard tap == nil else { return true }
 
-        // Create event tap callback
-        let callback: CGEventTapCallBack = { proxy, type, event, refcon -> Unmanaged<CGEvent>? in
-            // Handle tap disabled by system - re-enable via monitor's eventTap
-            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                if let refcon = refcon {
-                    let monitor = Unmanaged<InputMonitor>.fromOpaque(refcon).takeUnretainedValue()
-                    if let tap = monitor.eventTap {
-                        CGEvent.tapEnable(tap: tap, enable: true)
-                    }
-                }
-                return Unmanaged.passUnretained(event)
+        // The tap's source runs on the main run loop, so callbacks arrive on main.
+        dispatchPrecondition(condition: .onQueue(.main))
+
+        let callback: CGEventTapCallBack = { _, type, event, refcon -> Unmanaged<CGEvent>? in
+            if let refcon {
+                Unmanaged<InputMonitor>.fromOpaque(refcon).takeUnretainedValue().handle(type)
             }
-
-            // Notify delegate with debouncing
-            if let refcon = refcon {
-                let monitor = Unmanaged<InputMonitor>.fromOpaque(refcon).takeUnretainedValue()
-
-                // Debounce check
-                let now = Date()
-                if now.timeIntervalSince(monitor.lastEventTime) > monitor.debounceInterval {
-                    monitor.lastEventTime = now
-                    DispatchQueue.main.async {
-                        monitor.delegate?.inputDetected(eventType: type)
-                    }
-                }
-            }
-
-            // Pass event through (we're only listening, not blocking)
+            // Listen-only: always pass the event through
             return Unmanaged.passUnretained(event)
         }
 
-        // Create event tap
-        guard let tap = CGEvent.tapCreate(
+        guard let port = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .listenOnly,
-            eventsOfInterest: Self.eventMask,
+            eventsOfInterest: IntrusionInput.eventMask,
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else {
-            log(.input, "Failed to create event tap - check Accessibility permissions")
+        ), let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0) else {
+            logActivity(.input, "Failed to create event tap - check Accessibility permissions")
             return false
         }
 
-        eventTap = tap
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: port, enable: true)
+        tap = (port, source)
 
-        // Add to run loop
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-
-        // Enable tap
-        CGEvent.tapEnable(tap: tap, enable: true)
-        isMonitoring = true
-
-        log(.input, "Started monitoring input events")
+        logActivity(.input, "Started monitoring input events")
         return true
+    }
+
+    private func handle(_ type: CGEventType) {
+        // The system disables a tap it considers slow; turn it back on
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let tap { CGEvent.tapEnable(tap: tap.port, enable: true) }
+            return
+        }
+        guard let input = IntrusionInput(type) else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastEventTime) > debounceInterval else { return }
+        lastEventTime = now
+        delegate?.inputDetected(input)
     }
 
     /// Stop monitoring input events
     func stopMonitoring() {
-        guard isMonitoring else { return }
+        guard let tap else { return }
+        CGEvent.tapEnable(tap: tap.port, enable: false)
+        // Drop the tap now: the callback holds an unretained pointer to self.
+        CFMachPortInvalidate(tap.port)
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), tap.source, .commonModes)
+        self.tap = nil
 
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
-        }
-
-        eventTap = nil
-        runLoopSource = nil
-        isMonitoring = false
-
-        log(.input, "Stopped monitoring input events")
+        logActivity(.input, "Stopped monitoring input events")
     }
 
     deinit {
