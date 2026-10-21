@@ -12,7 +12,7 @@
 
     <!-- Apple Events for volume control -->
     <key>NSAppleEventsUsageDescription</key>
-    <string>MacGuard needs to control system volume to play the alarm at maximum volume.</string>
+    <string>MacGuard sends the alerts you enable through Mail and Messages, and can lock the screen when arming.</string>
 
     <!-- Prevent automatic termination -->
     <key>NSSupportsAutomaticTermination</key>

@@ -5,20 +5,61 @@
 import SwiftUI
 
 /// App delegate to handle app lifecycle events
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Owned here (not by the SwiftUI scene) so termination can consult it.
+    let alarmManager = AlarmStateManager()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Login, a manual launch and the watchdog can all start MacGuard; the first wins.
+        if let other = Self.otherRunningInstance() {
+            other.activate()
+            exit(0)
+        }
+
+        // Observers attach before any resume, so a tamper alarm is reported
+        alarmManager.onEvent(NotificationDispatcher.shared.handle)
+
+        let tamperGuard = TamperGuard.shared
+        if case .resumeAfterTamper(let session) = tamperGuard.launchDecision() {
+            alarmManager.resumeAfterTamper(session)
+        }
+        tamperGuard.syncAgent()
+    }
+
+    /// Reopening shows Settings, so the app is reachable when the menu bar icon is hidden.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        SettingsWindowController.shared.show(alarmManager: alarmManager)
+        return false
+    }
+
+    private static func otherRunningInstance() -> NSRunningApplication? {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return nil }
+        let me = ProcessInfo.processInfo.processIdentifier
+        // The headless watchdog shares the bundle id; its activation policy excludes it.
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .first { $0.processIdentifier != me && $0.activationPolicy != .prohibited }
+    }
+
+    /// With the overlay up the app has a menu, so ⌘Q would otherwise silence the alarm.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard alarmManager.state == .idle else {
+            ActivityLogManager.shared.log(.system, "Quit blocked - disarm first")
+            return .terminateCancel
+        }
+        return .terminateNow
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         // Reset lid close protection on app exit to restore normal sleep behavior
-        if AppSettings.shared.lidCloseProtection {
-            AppSettings.shared.resetLidCloseProtection()
-        }
+        AppSettings.shared.resetLidCloseProtection()
+        ActivityLogManager.shared.flush()
     }
 }
 
-/// Main entry point for MacGuard menu bar application
-@main
+/// MacGuard menu bar application (started from main.swift)
 struct MacGuardApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var alarmManager = AlarmStateManager()
 
     // Initialize update manager (starts Sparkle auto-update)
     private let updateManager = UpdateManager.shared
@@ -34,9 +75,9 @@ struct MacGuardApp: App {
         // Menu bar app (no main window)
         MenuBarExtra {
             MenuBarView()
-                .environmentObject(alarmManager)
+                .environmentObject(appDelegate.alarmManager)
         } label: {
-            MenuBarIconView(state: alarmManager.state)
+            MenuBarIconView(alarmManager: appDelegate.alarmManager)
         }
         .menuBarExtraStyle(.window)
     }
@@ -44,7 +85,7 @@ struct MacGuardApp: App {
 
 /// Custom menu bar icon view with state-based color tint
 struct MenuBarIconView: View {
-    let state: AlarmState
+    @ObservedObject var alarmManager: AlarmStateManager
 
     var body: some View {
         Image(systemName: iconName)
@@ -53,10 +94,10 @@ struct MenuBarIconView: View {
     }
 
     private var iconName: String {
-        switch state {
+        switch alarmManager.state.phase {
         case .idle:
             return "shield"
-        case .armed:
+        case .arming, .armed:
             return "shield.fill"
         case .triggered, .alarming:
             return "exclamationmark.shield.fill"
@@ -64,9 +105,11 @@ struct MenuBarIconView: View {
     }
 
     private var iconColor: Color {
-        switch state {
+        switch alarmManager.state.phase {
         case .idle:
             return .primary
+        case .arming:
+            return .secondary
         case .armed:
             return .green
         case .triggered:
