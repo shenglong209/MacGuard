@@ -4,6 +4,42 @@
 
 import Foundation
 
+/// Equal by the six bytes, so case or separator differences can't split one device.
+struct BluetoothAddress: Hashable, CustomStringConvertible {
+    let bytes: [UInt8]
+    /// As received, so persisted data reads the same in older builds
+    let description: String
+
+    init?(_ text: String) {
+        let hex = Array(text.filter { $0 != "-" && $0 != ":" })
+        // isHexDigit also rules out "+"/"-" signs that UInt8(_:radix:) accepts
+        guard hex.count == 12, hex.allSatisfy(\.isHexDigit) else { return nil }
+        var bytes: [UInt8] = []
+        for i in stride(from: 0, to: 12, by: 2) {
+            guard let byte = UInt8(String(hex[i...i + 1]), radix: 16) else { return nil }
+            bytes.append(byte)
+        }
+        self.bytes = bytes
+        self.description = text
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.bytes == rhs.bytes }
+    func hash(into hasher: inout Hasher) { hasher.combine(bytes) }
+}
+
+/// Both Bluetooth stacks report "no reading" in-band as 0 or 127; those parse to nil.
+struct RSSI: Hashable, Comparable, CustomStringConvertible {
+    let dBm: Int
+
+    init?(_ raw: Int) {
+        guard raw != 0, raw != 127 else { return nil }
+        dBm = raw
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.dBm < rhs.dBm }
+    var description: String { "\(dBm) dBm" }
+}
+
 /// Represents a trusted Bluetooth device for auto-disarm
 /// Supports both BLE devices (iPhone, Watch) and Classic Bluetooth (AirPods, headphones)
 struct TrustedDevice: Identifiable, Codable, Hashable {

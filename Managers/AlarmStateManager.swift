@@ -210,11 +210,11 @@ class AlarmStateManager: ObservableObject {
     /// Attempt to disarm with biometric authentication
     /// - Parameter completion: Called with success status
     func attemptBiometricDisarm(completion: @escaping (Bool) -> Void) {
-        authManager.authenticateWithBiometrics { [weak self] success, error in
-            if success {
-                self?.disarm(reason: "Disarmed via Touch ID")
+        authManager.authenticate { [weak self] proof in
+            if proof != nil {
+                self?.disarm(reason: "Disarmed via Touch ID / password")
             }
-            completion(success)
+            completion(proof != nil)
         }
     }
 
@@ -222,7 +222,7 @@ class AlarmStateManager: ObservableObject {
     /// - Parameter pin: The entered PIN
     /// - Returns: true if PIN is correct and alarm is disarmed
     func attemptPINDisarm(_ pin: String) -> Bool {
-        if authManager.validatePIN(pin) {
+        if case .accepted = authManager.verifyPIN(pin) {
             disarm(reason: "Disarmed via PIN")
             return true
         }
@@ -245,7 +245,7 @@ class AlarmStateManager: ObservableObject {
             ActivityLogManager.shared.log(.bluetooth, "Some devices nearby but 'any away' mode - proceeding with trigger")
         }
 
-        let duration = AppSettings.shared.countdownDuration
+        let duration = AppSettings.shared.countdownDuration.rawValue
         countdownSeconds = duration
 
         // Show fullscreen overlay
@@ -314,7 +314,7 @@ class AlarmStateManager: ObservableObject {
 
     private func startAutoArmTimer() {
         autoArmTimer?.invalidate()
-        let delay = AppSettings.shared.autoArmGracePeriod
+        let delay = AppSettings.shared.autoArmGracePeriod.rawValue
         ActivityLogManager.shared.log(.system, "Auto-arm timer started (\(delay)s grace period)")
 
         autoArmTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delay), repeats: false) { [weak self] _ in

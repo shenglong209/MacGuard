@@ -35,10 +35,9 @@ class AlarmAudioManager: ObservableObject {
         guard !isPrepared else { return }
 
         let settings = AppSettings.shared
-        if let soundPath = settings.effectiveSoundPath,
-           FileManager.default.fileExists(atPath: soundPath) {
+        if let file = settings.alarmSoundFile {
             do {
-                audioPlayer = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: soundPath))
+                audioPlayer = try AVAudioPlayer(contentsOf: file.url)
                 audioPlayer?.numberOfLoops = -1
                 audioPlayer?.volume = 1.0
                 audioPlayer?.prepareToPlay()
@@ -91,9 +90,8 @@ class AlarmAudioManager: ObservableObject {
             player.play()
             isPlaying = true
             log(.alarm, "Playing alarm sound (pre-loaded)")
-        } else if let soundPath = settings.effectiveSoundPath,
-           FileManager.default.fileExists(atPath: soundPath) {
-            playAudioFile(URL(fileURLWithPath: soundPath))
+        } else if let file = settings.alarmSoundFile {
+            playAudioFile(file.url)
         } else {
             // Fallback to system beep
             log(.alarm, "Alarm sound not found, using system beep")
