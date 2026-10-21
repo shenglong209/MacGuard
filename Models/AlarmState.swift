@@ -4,32 +4,75 @@
 
 import Foundation
 
-/// Represents the current state of the alarm system
-enum AlarmState: String, Equatable {
+struct ArmSession: Equatable {
+    /// Only then may a device's return disarm: a phone in your pocket at a
+    /// manual arm must not disarm a moment later.
+    var trustedDeviceHasLeft: Bool
+}
+
+/// `remaining` is always in `1...total`; an expired countdown is `.alarming`.
+struct Countdown: Equatable {
+    let total: Int
+    private(set) var remaining: Int
+
+    /// `nil` when the alarm should sound immediately.
+    init?(seconds: Int) {
+        guard seconds > 0 else { return nil }
+        total = seconds
+        remaining = seconds
+    }
+
+    func ticked() -> Countdown? {
+        guard remaining > 1 else { return nil }
+        var next = self
+        next.remaining -= 1
+        return next
+    }
+
+    var progress: Double { Double(remaining) / Double(total) }
+}
+
+/// Data that only exists in some states lives inside those cases.
+enum AlarmState: Equatable {
     /// App running, theft mode OFF
     case idle
+    /// Monitors start after the exit delay, so the arming keystroke is not an intrusion
+    case arming(ArmSession)
     /// Theft mode ON, monitoring for unauthorized input
-    case armed
+    case armed(ArmSession)
     /// Intrusion detected, countdown active before alarm
-    case triggered
+    case triggered(ArmSession, Countdown, TriggerCause)
     /// Alarm is actively playing
-    case alarming
+    case alarming(ArmSession, TriggerCause)
 
-    var description: String {
+    var session: ArmSession? {
         switch self {
-        case .idle: return "Idle"
-        case .armed: return "Armed"
-        case .triggered: return "Triggered"
-        case .alarming: return "Alarming"
+        case .idle: return nil
+        case .arming(let s), .armed(let s), .triggered(let s, _, _), .alarming(let s, _): return s
         }
     }
 
-    var menuBarIcon: String {
+    func updatingSession(_ update: (inout ArmSession) -> Void) -> AlarmState {
         switch self {
-        case .idle: return "lock.shield"
-        case .armed: return "lock.shield.fill"
-        case .triggered: return "exclamationmark.shield.fill"
-        case .alarming: return "bell.badge.fill"
+        case .idle: return self
+        case .arming(var s): update(&s); return .arming(s)
+        case .armed(var s): update(&s); return .armed(s)
+        case .triggered(var s, let c, let cause): update(&s); return .triggered(s, c, cause)
+        case .alarming(var s, let cause): update(&s); return .alarming(s, cause)
         }
     }
+
+    var phase: AlarmPhase {
+        switch self {
+        case .idle: return .idle
+        case .arming: return .arming
+        case .armed: return .armed
+        case .triggered: return .triggered
+        case .alarming: return .alarming
+        }
+    }
+}
+
+enum AlarmPhase: Equatable {
+    case idle, arming, armed, triggered, alarming
 }
