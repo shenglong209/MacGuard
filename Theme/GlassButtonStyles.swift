@@ -169,53 +169,6 @@ struct GlassIconButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - State-Colored Primary Button
-
-struct GlassStateButtonStyle: ButtonStyle {
-    let state: AlarmState
-
-    var stateColor: Color {
-        switch state {
-        case .idle: return Theme.StateColor.idle
-        case .armed: return Theme.StateColor.armed
-        case .triggered: return Theme.StateColor.triggered
-        case .alarming: return Theme.StateColor.alarming
-        }
-    }
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .foregroundStyle(.white)
-            .padding(.horizontal, Theme.Spacing.xl)
-            .padding(.vertical, Theme.Spacing.md)
-            .background {
-                ZStack {
-                    Capsule()
-                        .fill(stateColor)
-
-                    // Glass overlay
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .white.opacity(0.25), location: 0.0),
-                                    .init(color: .clear, location: 0.5),
-                                    .init(color: .black.opacity(0.15), location: 1.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                }
-            }
-            .glassCapsuleBorder(prominent: true)
-            .scaleEffect(configuration.isPressed ? Theme.Animation.buttonPressScale : 1.0)
-            .shadow(color: stateColor.opacity(0.4), radius: 8, y: 4)
-            .animation(.easeInOut(duration: Theme.Animation.buttonPressDuration), value: configuration.isPressed)
-    }
-}
-
 // MARK: - Bordered Prominent Glass Button (replacement for system .borderedProminent)
 
 struct GlassBorderedProminentButtonStyle: ButtonStyle {

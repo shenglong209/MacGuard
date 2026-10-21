@@ -677,8 +677,8 @@ struct PINSetupContainerView: View {
     }
 
     private func savePIN() {
-        guard viewModel.pin.count >= 4, viewModel.pin.count <= 8 else {
-            viewModel.errorMessage = "PIN must be 4-8 characters"
+        guard let pin = PIN(viewModel.pin) else {
+            viewModel.errorMessage = "PIN must be 4-8 digits"
             viewModel.showError = true
             return
         }
@@ -690,7 +690,7 @@ struct PINSetupContainerView: View {
             return
         }
 
-        if viewModel.authManager?.savePIN(viewModel.pin) == true {
+        if viewModel.authManager?.savePIN(pin) == true {
             onDismiss()
         } else {
             viewModel.errorMessage = "Failed to save PIN"

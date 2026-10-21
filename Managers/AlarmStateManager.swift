@@ -210,11 +210,11 @@ class AlarmStateManager: ObservableObject {
     /// Attempt to disarm with biometric authentication
     /// - Parameter completion: Called with success status
     func attemptBiometricDisarm(completion: @escaping (Bool) -> Void) {
-        authManager.authenticateWithBiometrics { [weak self] success, error in
-            if success {
-                self?.disarm(reason: "Disarmed via Touch ID")
+        authManager.authenticate { [weak self] proof in
+            if proof != nil {
+                self?.disarm(reason: "Disarmed via Touch ID / password")
             }
-            completion(success)
+            completion(proof != nil)
         }
     }
 
@@ -222,7 +222,7 @@ class AlarmStateManager: ObservableObject {
     /// - Parameter pin: The entered PIN
     /// - Returns: true if PIN is correct and alarm is disarmed
     func attemptPINDisarm(_ pin: String) -> Bool {
-        if authManager.validatePIN(pin) {
+        if case .accepted = authManager.verifyPIN(pin) {
             disarm(reason: "Disarmed via PIN")
             return true
         }
