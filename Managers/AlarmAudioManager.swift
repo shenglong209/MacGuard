@@ -6,6 +6,108 @@ import AVFoundation
 import Cocoa
 import CoreAudio
 
+/// A CoreAudio device. The HAL's "unknown" id (0) never becomes one.
+struct AudioDevice: Equatable, CustomStringConvertible {
+    let id: AudioDeviceID
+
+    init?(_ id: AudioDeviceID) {
+        guard id != kAudioObjectUnknown else { return nil }
+        self.id = id
+    }
+
+    var description: String { "\(id)" }
+
+    private static let system = AudioObjectID(kAudioObjectSystemObject)
+
+    static var defaultOutput: AudioDevice? {
+        get { get(system, address(kAudioHardwarePropertyDefaultOutputDevice), as: AudioDeviceID(0)).flatMap(AudioDevice.init) }
+        set {
+            guard let newValue, !set(system, address(kAudioHardwarePropertyDefaultOutputDevice), newValue.id) else { return }
+            logActivity(.alarm, "Failed to set output device \(newValue)")
+        }
+    }
+
+    static var all: [AudioDevice] {
+        var address = address(kAudioHardwarePropertyDevices)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr else { return [] }
+        var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &ids) == noErr else { return [] }
+        return ids.compactMap(AudioDevice.init)
+    }
+
+    var isBuiltInOutput: Bool {
+        var streams = Self.address(kAudioDevicePropertyStreams, kAudioDevicePropertyScopeOutput)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(id, &streams, 0, nil, &size) == noErr, size > 0 else { return false }
+        return Self.get(id, Self.address(kAudioDevicePropertyTransportType), as: UInt32(0)) == kAudioDeviceTransportTypeBuiltIn
+    }
+
+    /// Average output volume (0...1), or nil if the device exposes none.
+    var volume: Float? {
+        let values = outputElements(kAudioDevicePropertyVolumeScalar).compactMap {
+            Self.get(id, Self.output(kAudioDevicePropertyVolumeScalar, $0), as: Float32(0))
+        }
+        return values.isEmpty ? nil : values.reduce(0, +) / Float(values.count)
+    }
+
+    var isMuted: Bool? {
+        let values = outputElements(kAudioDevicePropertyMute).compactMap { Self.get(id, Self.output(kAudioDevicePropertyMute, $0), as: UInt32(0)) }
+        return values.isEmpty ? nil : values.contains { $0 != 0 }
+    }
+
+    func setVolume(_ volume: Float) {
+        for element in outputElements(kAudioDevicePropertyVolumeScalar) {
+            Self.set(id, Self.output(kAudioDevicePropertyVolumeScalar, element), Float32(min(max(volume, 0), 1)))
+        }
+    }
+
+    func unmute() {
+        for element in outputElements(kAudioDevicePropertyMute) {
+            Self.set(id, Self.output(kAudioDevicePropertyMute, element), UInt32(0))
+        }
+    }
+
+    /// Volume and mute listener addresses on this device.
+    var enforcementAddresses: [AudioObjectPropertyAddress] {
+        [kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyMute].flatMap { selector in
+            outputElements(selector).map { Self.output(selector, $0) }
+        }
+    }
+
+    /// Many devices only expose per-channel (1, 2) volume, not the main element.
+    private func outputElements(_ selector: AudioObjectPropertySelector) -> [AudioObjectPropertyElement] {
+        func has(_ element: AudioObjectPropertyElement) -> Bool {
+            var address = Self.output(selector, element)
+            return AudioObjectHasProperty(id, &address)
+        }
+        return has(kAudioObjectPropertyElementMain) ? [kAudioObjectPropertyElementMain] : [1, 2].filter(has)
+    }
+
+    static func address(_ selector: AudioObjectPropertySelector,
+                        _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+    }
+
+    private static func output(_ selector: AudioObjectPropertySelector, _ element: AudioObjectPropertyElement) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioDevicePropertyScopeOutput, mElement: element)
+    }
+
+    private static func get<T: BitwiseCopyable>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, as initial: T) -> T? {
+        var address = address
+        var value = initial
+        var size = UInt32(MemoryLayout<T>.size)
+        return AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr ? value : nil
+    }
+
+    @discardableResult
+    private static func set<T: BitwiseCopyable>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: T) -> Bool {
+        var address = address
+        var value = value
+        return AudioObjectSetPropertyData(object, &address, 0, nil, UInt32(MemoryLayout<T>.size), &value) == noErr
+    }
+}
+
 /// Manages alarm audio playback at maximum volume
 class AlarmAudioManager: ObservableObject {
     @Published var isPlaying = false
@@ -35,10 +137,9 @@ class AlarmAudioManager: ObservableObject {
         guard !isPrepared else { return }
 
         let settings = AppSettings.shared
-        if let soundPath = settings.effectiveSoundPath,
-           FileManager.default.fileExists(atPath: soundPath) {
+        if let file = settings.alarmSoundFile {
             do {
-                audioPlayer = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: soundPath))
+                audioPlayer = try AVAudioPlayer(contentsOf: file.url)
                 audioPlayer?.numberOfLoops = -1
                 audioPlayer?.volume = 1.0
                 audioPlayer?.prepareToPlay()
@@ -91,9 +192,8 @@ class AlarmAudioManager: ObservableObject {
             player.play()
             isPlaying = true
             log(.alarm, "Playing alarm sound (pre-loaded)")
-        } else if let soundPath = settings.effectiveSoundPath,
-           FileManager.default.fileExists(atPath: soundPath) {
-            playAudioFile(URL(fileURLWithPath: soundPath))
+        } else if let file = settings.alarmSoundFile {
+            playAudioFile(file.url)
         } else {
             // Fallback to system beep
             log(.alarm, "Alarm sound not found, using system beep")
