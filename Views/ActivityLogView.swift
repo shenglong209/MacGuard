@@ -7,6 +7,8 @@ import SwiftUI
 /// Activity log viewer displayed in a sheet/window
 struct ActivityLogView: View {
     @ObservedObject private var logManager = ActivityLogManager.shared
+    /// Clearing is only offered while idle, so an intruder can't wipe the record.
+    @ObservedObject var alarmManager: AlarmStateManager
     @State private var selectedCategories: Set<ActivityLogCategory> = Set(ActivityLogCategory.allCases)
     @State private var searchText = ""
 
@@ -95,10 +97,11 @@ struct ActivityLogView: View {
                     Divider()
 
                     Button(role: .destructive) {
-                        logManager.clear()
+                        alarmManager.clearActivityLog()
                     } label: {
                         Label("Clear Log", systemImage: "trash")
                     }
+                    .disabled(alarmManager.state != .idle)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.title3)
@@ -255,67 +258,26 @@ struct ActivityLogView: View {
     }
 }
 
-// MARK: - Activity Log Window Controller
+// MARK: - Activity Log Window
 
-class ActivityLogWindowController: NSObject, NSWindowDelegate {
+@MainActor
+final class ActivityLogWindowController {
     static let shared = ActivityLogWindowController()
 
-    private var window: NSWindow?
-    private weak var parentWindow: NSWindow?
+    private var window: UtilityWindow?
 
-    private override init() {
-        super.init()
-    }
-
-    func show() {
-        // Track parent window for refocus
-        self.parentWindow = NSApp.keyWindow
-
+    func show(alarmManager: AlarmStateManager) {
         if window == nil {
-            createWindow()
+            let window = UtilityWindow(title: "Event Log", size: NSSize(width: 500, height: 400),
+                                       style: [.titled, .closable, .resizable],
+                                       content: ActivityLogView(alarmManager: alarmManager))
+            window.window.minSize = NSSize(width: 400, height: 300)
+            self.window = window
         }
-
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
-    }
-
-    private func createWindow() {
-        let hostingController = NSHostingController(rootView: ActivityLogView())
-
-        let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
-            styleMask: [.titled, .closable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-
-        newWindow.contentViewController = hostingController
-        newWindow.title = "Event Log"
-        newWindow.isReleasedWhenClosed = false
-        newWindow.delegate = self
-        newWindow.minSize = NSSize(width: 400, height: 300)
-
-        window = newWindow
-    }
-
-    private func refocusParent() {
-        if let parent = parentWindow, parent.isVisible {
-            parent.makeKeyAndOrderFront(nil)
-        }
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        refocusParent()
-        // Only revert to accessory if no other windows visible
-        let visibleWindows = NSApp.windows.filter { $0.isVisible && $0 != window }
-        if visibleWindows.isEmpty {
-            NSApp.setActivationPolicy(.accessory)
-        }
+        window?.show()
     }
 }
 
 #Preview {
-    ActivityLogView()
+    ActivityLogView(alarmManager: AlarmStateManager())
 }
