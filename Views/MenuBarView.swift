@@ -80,10 +80,12 @@ struct MenuBarView: View {
         switch alarmManager.state {
         case .idle:
             idleView
+        case .arming:
+            armingView
         case .armed:
             armedView
-        case .triggered:
-            triggeredView
+        case .triggered(_, let countdown, _):
+            triggeredView(countdown)
         case .alarming:
             alarmingView
         }
@@ -175,6 +177,8 @@ struct MenuBarView: View {
                 }
             }
             .buttonStyle(GlassMenuRowButtonStyle())
+            .disabled(alarmManager.state != .idle)
+            .help(alarmManager.state == .idle ? "" : "Disarm before quitting")
         }
     }
 
@@ -192,6 +196,25 @@ struct MenuBarView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
+    }
+
+    private var armingView: some View {
+        Button {
+            alarmManager.cancelArming()
+        } label: {
+            HStack {
+                ProgressView().controlSize(.small)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    if let deadline = alarmManager.armingDeadline, deadline > context.date {
+                        Text("Arming in \(deadline.secondsLeft(from: context.date))s… (Cancel)")
+                    } else {
+                        Text("Arming… (Cancel)")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(GlassSecondaryButtonStyle())
     }
 
     private var armedView: some View {
@@ -214,7 +237,7 @@ struct MenuBarView: View {
             }
 
             Button {
-                alarmManager.disarm()
+                alarmManager.requestDisarm()
             } label: {
                 HStack {
                     Image(systemName: "lock.open")
@@ -226,7 +249,7 @@ struct MenuBarView: View {
         }
     }
 
-    private var triggeredView: some View {
+    private func triggeredView(_ countdown: Countdown) -> some View {
         VStack(spacing: Theme.Spacing.md) {
             HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: "exclamationmark.shield.fill")
@@ -236,7 +259,7 @@ struct MenuBarView: View {
                     Text("Intrusion Detected")
                         .font(.headline)
                         .foregroundStyle(Theme.StateColor.triggered)
-                    Text("\(alarmManager.countdownSeconds)s until alarm")
+                    Text("\(countdown.remaining)s until alarm")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -244,7 +267,7 @@ struct MenuBarView: View {
             }
 
             Button {
-                alarmManager.attemptBiometricDisarm { _ in }
+                alarmManager.requestDisarm()
             } label: {
                 HStack {
                     Image(systemName: "touchid")
@@ -269,7 +292,7 @@ struct MenuBarView: View {
             }
 
             Button {
-                alarmManager.attemptBiometricDisarm { _ in }
+                alarmManager.requestDisarm()
             } label: {
                 HStack {
                     Image(systemName: "hand.raised.fill")

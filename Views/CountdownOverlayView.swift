@@ -24,7 +24,7 @@ struct CountdownOverlayView: View {
                 LinearGradient(
                     stops: [
                         .init(color: .black.opacity(0.60), location: 0.0),
-                        .init(color: .black.opacity(alarmManager.state == .alarming ? 0.40 : 0.50), location: 1.0)
+                        .init(color: .black.opacity(isAlarming ? 0.40 : 0.50), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -32,7 +32,7 @@ struct CountdownOverlayView: View {
                 .ignoresSafeArea()
 
                 // Pulsing background circle for alarm state - centered and fixed
-                if alarmManager.state == .alarming {
+                if isAlarming {
                     Circle()
                         .fill(Theme.StateColor.alarming.opacity(pulseOpacity))
                         .frame(width: 350, height: 350)
@@ -53,7 +53,7 @@ struct CountdownOverlayView: View {
         .onChange(of: alarmManager.state) { newState in
             startAnimations()
             // Reset auto-auth flag when state changes
-            if newState == .alarming {
+            if newState.phase == .alarming {
                 hasAttemptedAutoAuth = false
                 autoTriggerBiometrics()
             }
@@ -71,10 +71,10 @@ struct CountdownOverlayView: View {
             Text(titleText)
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-                .tracking(alarmManager.state == .alarming ? 4 : 2)
+                .tracking(isAlarming ? 4 : 2)
 
             // Countdown ring (triggered state)
-            if alarmManager.state == .triggered {
+            if alarmManager.state.phase == .triggered {
                 countdownRing
 
                 Text("Authenticate to disarm")
@@ -147,16 +147,21 @@ struct CountdownOverlayView: View {
                 .animation(.linear(duration: 1), value: ringProgress)
 
             // Countdown number
-            Text("\(alarmManager.countdownSeconds)")
+            Text("\(countdown?.remaining ?? 0)")
                 .font(.system(size: 72, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
         }
     }
 
-    private var ringProgress: CGFloat {
-        guard AppSettings.shared.countdownDuration > 0 else { return 0 }
-        return CGFloat(alarmManager.countdownSeconds) / CGFloat(AppSettings.shared.countdownDuration)
+    private var isAlarming: Bool { alarmManager.state.phase == .alarming }
+
+    private var countdown: Countdown? {
+        if case .triggered(_, let countdown, _) = alarmManager.state { return countdown }
+        return nil
     }
+
+    /// From the countdown itself, not the live setting, so a mid-countdown change can't skew it.
+    private var ringProgress: CGFloat { CGFloat(countdown?.progress ?? 0) }
 
     // MARK: - Auth Buttons
 
@@ -228,15 +233,15 @@ struct CountdownOverlayView: View {
     // MARK: - Computed Properties
 
     private var iconName: String {
-        alarmManager.state == .alarming ? "bell.badge.waveform.fill" : "exclamationmark.shield.fill"
+        isAlarming ? "bell.badge.waveform.fill" : "exclamationmark.shield.fill"
     }
 
     private var iconColor: Color {
-        alarmManager.state == .alarming ? Theme.StateColor.alarming : Theme.StateColor.triggered
+        isAlarming ? Theme.StateColor.alarming : Theme.StateColor.triggered
     }
 
     private var titleText: String {
-        alarmManager.state == .alarming ? "ALARM ACTIVE" : "UNAUTHORIZED ACCESS"
+        isAlarming ? "ALARM ACTIVE" : "UNAUTHORIZED ACCESS"
     }
 
     // MARK: - Animations
@@ -244,11 +249,11 @@ struct CountdownOverlayView: View {
     private func startAnimations() {
         // Icon pulse animation
         withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-            iconScale = alarmManager.state == .alarming ? 1.15 : 1.05
+            iconScale = isAlarming ? 1.15 : 1.05
         }
 
         // Background pulse for alarm state
-        if alarmManager.state == .alarming {
+        if isAlarming {
             withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
                 pulseOpacity = 0.6
                 pulseScale = 1.1
@@ -259,7 +264,7 @@ struct CountdownOverlayView: View {
     // MARK: - Actions
 
     private func authenticateWithBiometrics() {
-        alarmManager.attemptBiometricDisarm { success in
+        alarmManager.requestDisarm { success in
             if !success {
                 withAnimation { showPINEntry = true }
             }
@@ -270,7 +275,7 @@ struct CountdownOverlayView: View {
     private func autoTriggerBiometrics() {
         // Only auto-trigger once per alarm cycle and if biometrics available
         guard !hasAttemptedAutoAuth,
-              alarmManager.state == .alarming,
+              isAlarming,
               alarmManager.authManager.hasBiometrics else { return }
 
         hasAttemptedAutoAuth = true
@@ -354,7 +359,7 @@ struct PINOverlay: View {
     }
 
     private func validate() {
-        if alarmManager.attemptPINDisarm(pin) {
+        if case .accepted = alarmManager.attemptPINDisarm(pin) {
             withAnimation { isPresented = false }
         } else {
             showError = true

@@ -16,6 +16,10 @@ class ActivityLogManager: ObservableObject {
     private let maxEntries = 500
     private let logFileURL: URL
 
+    /// Coalesced: logging happens on every Bluetooth poll while armed.
+    private var saveWorkItem: DispatchWorkItem?
+    private let saveDelay: TimeInterval = 2.0
+
     private init() {
         // Store logs in Application Support directory
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -42,12 +46,11 @@ class ActivityLogManager: ObservableObject {
         entries.insert(entry, at: 0)
 
         // Trim old entries
-        while entries.count > maxEntries {
-            entries.removeLast()
+        if entries.count > maxEntries {
+            entries.removeLast(entries.count - maxEntries)
         }
 
-        // Persist to disk
-        saveToDisk()
+        scheduleSave()
 
         // Also print to console for debugging
         print("[MacGuard:\(category.rawValue)] \(message)")
@@ -56,17 +59,27 @@ class ActivityLogManager: ObservableObject {
     /// Clear all log entries
     func clear() {
         entries.removeAll()
-        saveToDisk()
         log(.system, "Log cleared")
     }
 
     // MARK: - Persistence
 
-    private func saveToDisk() {
+    private func scheduleSave() {
+        guard saveWorkItem == nil else { return }
+        let item = DispatchWorkItem { [weak self] in
+            Task { @MainActor in self?.flush() }
+        }
+        saveWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + saveDelay, execute: item)
+    }
+
+    /// Call on app termination.
+    func flush() {
+        saveWorkItem?.cancel()
+        saveWorkItem = nil
         do {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(entries)
             try data.write(to: logFileURL, options: .atomic)
         } catch {

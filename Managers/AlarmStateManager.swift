@@ -4,16 +4,16 @@
 
 import SwiftUI
 import Combine
-import CoreBluetooth
 
-/// Central state machine managing alarm states and transitions
+/// Imperative shell around `AlarmMachine`: parses callbacks into inputs, performs effects.
 @MainActor
 class AlarmStateManager: ObservableObject {
     // MARK: - Published Properties
 
     @Published private(set) var state: AlarmState = .idle
-    @Published var countdownSeconds: Int = 3
     @Published var hasAccessibilityPermission = false
+    /// Display only; the machine decides via `.armingDelayElapsed`.
+    @Published private(set) var armingDeadline: Date?
 
     // MARK: - Public Managers (for UI access)
 
@@ -23,49 +23,52 @@ class AlarmStateManager: ObservableObject {
 
     // MARK: - Private Properties
 
-    private var countdownTimer: Timer?
     private var permissionCheckTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
-    private var autoArmTimer: Timer?
     private let inputMonitor = InputMonitor()
     private let sleepMonitor = SleepMonitor()
     private let powerMonitor = PowerMonitor()
-    private let overlayController = CountdownWindowController()
+    private lazy var overlayController = CountdownWindowController(alarmManager: self)
 
-    /// Tracks if current armed state was triggered by auto-arm (device left)
-    /// When true, auto-disarm on device return is allowed
-    /// When false (manual arm), device must actually leave first before auto-disarm
-    private var wasAutoArmed: Bool = false
-
-    // MARK: - Computed Properties
-
-    var isArmed: Bool {
-        state != .idle
-    }
+    private lazy var runtime: AlarmRuntime = {
+        let runtime = AlarmRuntime(
+            hardware: self,
+            scheduler: RunLoopScheduler(),
+            environment: { [unowned self] in self.environment },
+            gracePeriod: { AppSettings.shared.autoArmGracePeriod }
+        )
+        runtime.onStateChange = { [unowned self] in self.state = $0 }
+        runtime.onArmingDeadlineChange = { [unowned self] in self.armingDeadline = $0 }
+        return runtime
+    }()
 
     // MARK: - Initialization
 
     init() {
-        inputMonitor.delegate = self
-        sleepMonitor.delegate = self
-        powerMonitor.delegate = self
-        bluetoothManager.delegate = self
+        // Every monitor delivers on the main run loop, already parsed
+        let forward: (AlarmInput) -> Void = { [weak self] input in
+            MainActor.assumeIsolated { self?.send(input) }
+        }
+        inputMonitor.onInput = forward
+        sleepMonitor.onInput = forward
+        powerMonitor.onInput = forward
+        bluetoothManager.onInput = forward
         checkPermissions()
         startPermissionPolling()
 
-        // Forward bluetoothManager changes to trigger view updates
-        bluetoothManager.$trustedDevices
+        // Forward nested managers' changes so views observing this one redraw
+        Publishers.Merge(bluetoothManager.objectWillChange, authManager.objectWillChange)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
 
-        // Observe AppSettings changes to start/stop scanning when auto-arm setting changes
+        // Delivered after the change (objectWillChange fires before it)
         AppSettings.shared.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.handleSettingsChanged()
+                self?.send(.settingsChanged)
             }
             .store(in: &cancellables)
     }
@@ -104,52 +107,71 @@ class AlarmStateManager: ObservableObject {
         startPermissionPolling()
     }
 
-    // MARK: - State Transitions
+    // MARK: - Machine
+
+    private var environment: AlarmEnvironment {
+        let settings = AppSettings.shared
+        return AlarmEnvironment(
+            countdown: settings.countdownDuration.countdown,
+            autoLockOnArm: settings.autoLockOnArm,
+            autoArmEnabled: settings.autoArmOnDeviceLeave,
+            autoArmMode: settings.autoArmMode,
+            hasTrustedDevices: !bluetoothManager.trustedDevices.isEmpty,
+            anyTrustedDeviceNearby: bluetoothManager.isTrustedDeviceNearby(),
+            allTrustedDevicesNearby: bluetoothManager.areAllDevicesNearby,
+            bluetoothStable: bluetoothManager.isBluetoothStable,
+            exitDelay: settings.exitDelay
+        )
+    }
+
+    private func send(_ input: AlarmInput) {
+        runtime.send(input)
+    }
+
+    func onEvent(_ sink: @escaping (AlarmEvent) -> Void) {
+        runtime.onEvent(sink)
+    }
+
+    // MARK: - Actions (UI)
 
     /// Arm the alarm system, optionally lock screen, and start monitoring
-    /// - Parameter isAutoArm: true if triggered by auto-arm (device left), false for manual arm
-    func arm(isAutoArm: Bool = false) {
-        guard state == .idle else { return }
+    func arm() {
+        send(.armRequested(auto: false))
+    }
 
-        // Track if this was auto-armed (for auto-disarm logic)
-        wasAutoArmed = isAutoArm
+    /// No authentication: nothing is guarded yet.
+    func cancelArming() {
+        send(.cancelArming)
+    }
 
-        // Pre-load audio for instant playback
-        audioManager.prepare()
+    func disarm(_ proof: OwnerAuthentication) {
+        send(.authenticated(proof))
+    }
 
-        // Lock screen if enabled in settings
-        if AppSettings.shared.autoLockOnArm {
-            lockScreen()
-        }
-
-        // Start monitors after a delay to avoid capturing the lock keystroke
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self = self else { return }
-
-            // Start input monitoring
-            guard self.inputMonitor.startMonitoring() else {
-                // Permission denied - show warning
-                self.hasAccessibilityPermission = false
-                ActivityLogManager.shared.log(.system, "Failed to arm - accessibility permission denied")
-                return
-            }
-
-            // Start system event monitors
-            self.sleepMonitor.startMonitoring()
-            self.powerMonitor.startMonitoring()
-
-            // Start Bluetooth proximity scanning
-            self.bluetoothManager.startScanning()
-            self.bluetoothManager.setArmedState(true)
-
-            self.hasAccessibilityPermission = true
-            self.state = .armed
-            ActivityLogManager.shared.log(.armed, "System armed - monitoring active")
+    func requestDisarm(completion: @escaping (Bool) -> Void = { _ in }) {
+        authManager.authenticate { [weak self] proof in
+            guard let self, let proof else { return completion(false) }
+            self.disarm(proof)
+            completion(true)
         }
     }
 
+    func attemptPINDisarm(_ pin: String) -> PINVerification {
+        let result = authManager.verifyPIN(pin)
+        if case .accepted(let proof) = result {
+            disarm(proof)
+        }
+        return result
+    }
+
+    /// Idle only, so the record of an intrusion survives.
+    func clearActivityLog() {
+        guard state == .idle else { return }
+        ActivityLogManager.shared.clear()
+    }
+
     /// Lock the Mac screen
-    private func lockScreen() {
+    func lockScreen() {
         // Primary method: pmset displaysleepnow (reliable on modern macOS)
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
@@ -178,334 +200,55 @@ class AlarmStateManager: ObservableObject {
             }
         }
     }
+}
 
-    /// Disarm the alarm system, stop all monitoring
-    /// - Parameter reason: Optional reason for disarming (logged to activity log)
-    func disarm(reason: String? = nil) {
-        countdownTimer?.invalidate()
-        countdownTimer = nil
-        cancelAutoArmTimer()
+// MARK: - AlarmHardware
+
+extension AlarmStateManager: AlarmHardware {
+    func prepareAudio() { audioManager.prepare() }
+
+    func closeConfigWindows() {
+        // Config windows opened while idle must not stay editable once armed
+        PINSetupWindowController.shared.close()
+        TrustedDevicesConfigWindowController.shared.close()
+        DeviceScannerWindowController.shared.close()
+    }
+
+    func startInputMonitoring() -> Bool {
+        let started = inputMonitor.startMonitoring()
+        hasAccessibilityPermission = started
+        return started
+    }
+
+    func startSystemMonitors() {
+        sleepMonitor.startMonitoring()
+        powerMonitor.startMonitoring()
+        bluetoothManager.startScanning()
+        bluetoothManager.setArmedState(true)
+    }
+
+    func stopMonitors() {
         inputMonitor.stopMonitoring()
         sleepMonitor.stopMonitoring()
         powerMonitor.stopMonitoring()
         bluetoothManager.setArmedState(false)
         bluetoothManager.stopScanning()
+    }
 
-        // Stop audio, release pre-loaded audio, and hide overlay
+    func resumeIdleScanning() { bluetoothManager.startScanning() }
+    func stopIdleScanning() { bluetoothManager.stopScanning() }
+    func showOverlay() { overlayController.show() }
+    func hideOverlay() { overlayController.hide() }
+    func playAlarm() { audioManager.playAlarm() }
+
+    func stopAlarm() {
         audioManager.stopAlarm()
         audioManager.unprepare()
-        overlayController.hide()
-
-        state = .idle
-        ActivityLogManager.shared.log(.disarmed, reason ?? "System disarmed")
-
-        // Only scan in idle if auto-arm enabled AND trusted devices configured
-        // This reduces CPU from ~10% to <1% when feature is OFF (default)
-        if AppSettings.shared.autoArmOnDeviceLeave,
-           !bluetoothManager.trustedDevices.isEmpty {
-            bluetoothManager.startScanning()
-        }
     }
 
-    /// Attempt to disarm with biometric authentication
-    /// - Parameter completion: Called with success status
-    func attemptBiometricDisarm(completion: @escaping (Bool) -> Void) {
-        authManager.authenticateWithBiometrics { [weak self] success, error in
-            if success {
-                self?.disarm(reason: "Disarmed via Touch ID")
-            }
-            completion(success)
-        }
+    func endOwnerChallenge() {
+        authManager.resetPINAttempts()
+        authManager.cancelPendingAuthentication()
     }
-
-    /// Attempt to disarm with PIN
-    /// - Parameter pin: The entered PIN
-    /// - Returns: true if PIN is correct and alarm is disarmed
-    func attemptPINDisarm(_ pin: String) -> Bool {
-        if authManager.validatePIN(pin) {
-            disarm(reason: "Disarmed via PIN")
-            return true
-        }
-        return false
-    }
-
-    /// Trigger the alarm countdown (called when intrusion detected)
-    func trigger() {
-        guard state == .armed else { return }
-
-        // Check if trusted device is nearby - behavior depends on auto-arm mode
-        if bluetoothManager.isTrustedDeviceNearby() {
-            // In "all devices away" mode: any nearby device suppresses trigger
-            // In "any device away" mode: don't suppress - user explicitly wants alarm when any device is away
-            if AppSettings.shared.autoArmMode == .allDevicesAway {
-                ActivityLogManager.shared.log(.bluetooth, "Trusted device nearby - ignoring trigger")
-                return
-            }
-            // "Any device away" mode: continue with trigger even if some devices are nearby
-            ActivityLogManager.shared.log(.bluetooth, "Some devices nearby but 'any away' mode - proceeding with trigger")
-        }
-
-        let duration = AppSettings.shared.countdownDuration
-        countdownSeconds = duration
-
-        // Show fullscreen overlay
-        overlayController.show(alarmManager: self)
-
-        // If countdown is 0, skip directly to alarm
-        if duration == 0 {
-            audioManager.playAlarm()
-            state = .alarming
-            ActivityLogManager.shared.log(.alarm, "Immediate alarm triggered (no countdown)")
-        } else {
-            state = .triggered
-            startCountdown()
-            ActivityLogManager.shared.log(.trigger, "Countdown started (\(duration)s)")
-        }
-    }
-
-    /// Immediately trigger alarm (e.g., for lid close)
-    func triggerImmediate() {
-        guard state == .armed || state == .triggered else { return }
-
-        // Check Bluetooth proximity - behavior depends on auto-arm mode
-        if bluetoothManager.isTrustedDeviceNearby() {
-            // In "all devices away" mode: any nearby device suppresses trigger
-            if AppSettings.shared.autoArmMode == .allDevicesAway {
-                ActivityLogManager.shared.log(.bluetooth, "Trusted device nearby - ignoring immediate trigger")
-                return
-            }
-            // "Any device away" mode: proceed with trigger
-            ActivityLogManager.shared.log(.bluetooth, "Some devices nearby but 'any away' mode - proceeding with immediate trigger")
-        }
-
-        countdownTimer?.invalidate()
-        countdownTimer = nil
-
-        // Show overlay and start alarm
-        overlayController.show(alarmManager: self)
-        audioManager.playAlarm()
-
-        state = .alarming
-        ActivityLogManager.shared.log(.alarm, "ALARM ACTIVE")
-    }
-
-    // MARK: - Private Methods
-
-    private func startCountdown() {
-        countdownTimer?.invalidate()
-        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let strongSelf = self else { return }
-            Task { @MainActor in
-                strongSelf.countdownSeconds -= 1
-                if strongSelf.countdownSeconds <= 0 {
-                    strongSelf.countdownTimer?.invalidate()
-                    strongSelf.countdownTimer = nil
-
-                    // Start alarm
-                    strongSelf.audioManager.playAlarm()
-                    strongSelf.state = .alarming
-                    ActivityLogManager.shared.log(.alarm, "Countdown expired - ALARM ACTIVE")
-                }
-            }
-        }
-    }
-
-    // MARK: - Auto-Arm Timer
-
-    private func startAutoArmTimer() {
-        autoArmTimer?.invalidate()
-        let delay = AppSettings.shared.autoArmGracePeriod
-        ActivityLogManager.shared.log(.system, "Auto-arm timer started (\(delay)s grace period)")
-
-        autoArmTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delay), repeats: false) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                guard self.state == .idle else { return }
-                ActivityLogManager.shared.log(.armed, "Auto-arming - trusted device still away")
-                self.arm(isAutoArm: true)
-            }
-        }
-    }
-
-    private func cancelAutoArmTimer(reason: String? = nil) {
-        if autoArmTimer != nil {
-            ActivityLogManager.shared.log(.system, reason ?? "Auto-arm timer cancelled")
-        }
-        autoArmTimer?.invalidate()
-        autoArmTimer = nil
-    }
-
-    /// Handle AppSettings changes - start/stop Bluetooth scanning based on auto-arm setting
-    private func handleSettingsChanged() {
-        guard state == .idle else { return }
-
-        let shouldScan = AppSettings.shared.autoArmOnDeviceLeave && !bluetoothManager.trustedDevices.isEmpty
-
-        if shouldScan && !bluetoothManager.isScanning {
-            bluetoothManager.startScanning()
-            ActivityLogManager.shared.log(.bluetooth, "Started scanning (auto-arm enabled)")
-        } else if !shouldScan && bluetoothManager.isScanning {
-            bluetoothManager.stopScanning()
-            ActivityLogManager.shared.log(.bluetooth, "Stopped scanning (auto-arm disabled)")
-        }
-    }
-}
-
-// MARK: - InputMonitorDelegate
-
-extension AlarmStateManager: InputMonitorDelegate {
-    nonisolated func inputDetected(eventType: CGEventType) {
-        Task { @MainActor in
-            guard self.state == .armed else { return }
-
-            // Log event type
-            let eventName: String
-            switch eventType {
-            case .keyDown: eventName = "keyboard"
-            case .leftMouseDown, .rightMouseDown, .otherMouseDown: eventName = "mouse click"
-            case .mouseMoved: eventName = "mouse move"
-            case .scrollWheel: eventName = "scroll/touchpad"
-            default: eventName = "unknown"
-            }
-            ActivityLogManager.shared.log(.input, "Input detected: \(eventName)")
-
-            self.trigger()
-        }
-    }
-}
-
-// MARK: - SleepMonitorDelegate
-
-extension AlarmStateManager: SleepMonitorDelegate {
-    nonisolated func lidWillClose() {
-        Task { @MainActor in
-            guard self.state == .armed else { return }
-            // Lid close = immediate alarm (no countdown per validation)
-            ActivityLogManager.shared.log(.system, "Lid close detected - immediate alarm")
-            self.triggerImmediate()
-        }
-    }
-
-    nonisolated func systemDidWake() {
-        Task { @MainActor in
-            // Auto-disarm if trusted device is nearby on wake
-            if self.bluetoothManager.isTrustedDeviceNearby() {
-                self.disarm(reason: "Disarmed on wake - trusted device nearby")
-            } else {
-                ActivityLogManager.shared.log(.system, "System woke from sleep")
-            }
-        }
-    }
-}
-
-// MARK: - PowerMonitorDelegate
-
-extension AlarmStateManager: PowerMonitorDelegate {
-    nonisolated func powerCableDisconnected() {
-        Task { @MainActor in
-            guard self.state == .armed else { return }
-            // Power disconnect = start countdown
-            ActivityLogManager.shared.log(.power, "Power cable disconnected - starting countdown")
-            self.trigger()
-        }
-    }
-
-    nonisolated func powerCableConnected() {
-        Task { @MainActor in
-            ActivityLogManager.shared.log(.power, "Power cable connected")
-        }
-    }
-}
-
-// MARK: - BluetoothProximityDelegate
-
-extension AlarmStateManager: BluetoothProximityDelegate {
-    nonisolated func trustedDeviceNearby(_ device: TrustedDevice) {
-        Task { @MainActor in
-            // Cancel pending auto-arm (always, regardless of mode)
-            self.cancelAutoArmTimer(reason: "Auto-arm cancelled - '\(device.name)' detected nearby")
-
-            // Auto-disarm logic depends on mode
-            guard self.state == .armed || self.state == .triggered || self.state == .alarming else { return }
-
-            // Only auto-disarm if system was auto-armed (device actually left)
-            // If manually armed with device present, device must leave first before auto-disarm applies
-            guard self.wasAutoArmed else {
-                // Manual arm - don't auto-disarm, just log
-                ActivityLogManager.shared.log(.bluetooth, "Device '\(device.name)' nearby but manual arm - not auto-disarming")
-                return
-            }
-
-            // In "any device away" mode: only disarm when ALL devices are nearby
-            // In "all devices away" mode: disarm when ANY device returns
-            if AppSettings.shared.autoArmMode == .anyDeviceAway {
-                // Check if ALL trusted devices are now nearby
-                let allNearby = self.bluetoothManager.trustedDevices.allSatisfy { device in
-                    self.bluetoothManager.isNearby(device)
-                }
-                if allNearby {
-                    self.disarm(reason: "Disarmed - all trusted devices returned")
-                }
-            } else {
-                // "All devices away" mode: any device returning disarms
-                self.disarm(reason: "Disarmed via trusted device '\(device.name)'")
-            }
-        }
-    }
-
-    nonisolated func trustedDeviceAway(_ device: TrustedDevice) {
-        Task { @MainActor in
-            ActivityLogManager.shared.log(.bluetooth, "Trusted device '\(device.name)' left proximity")
-
-            // If armed and device leaves, enable auto-disarm on return
-            // (device actually left, so return should disarm)
-            if self.state == .armed || self.state == .triggered || self.state == .alarming {
-                if !self.wasAutoArmed {
-                    self.wasAutoArmed = true
-                    ActivityLogManager.shared.log(.bluetooth, "Device left while armed - enabling auto-disarm on return")
-                }
-            }
-
-            // For "any device away" mode - start auto-arm when any device leaves
-            guard AppSettings.shared.autoArmOnDeviceLeave,
-                  AppSettings.shared.autoArmMode == .anyDeviceAway,
-                  self.state == .idle else { return }
-
-            // Don't auto-arm if BT is unstable or powered off (prevents false alarms)
-            guard self.bluetoothManager.isBluetoothStable else {
-                ActivityLogManager.shared.log(.bluetooth, "Auto-arm blocked - BT unstable or off")
-                return
-            }
-
-            ActivityLogManager.shared.log(.bluetooth, "Any device away mode - starting grace period")
-            self.startAutoArmTimer()
-        }
-    }
-
-    nonisolated func allTrustedDevicesAway() {
-        Task { @MainActor in
-            guard AppSettings.shared.autoArmOnDeviceLeave,
-                  AppSettings.shared.autoArmMode == .allDevicesAway,
-                  self.state == .idle else { return }
-
-            // Don't auto-arm if BT is unstable or powered off (prevents false alarms)
-            guard self.bluetoothManager.isBluetoothStable else {
-                ActivityLogManager.shared.log(.bluetooth, "Auto-arm blocked - BT unstable or off")
-                return
-            }
-
-            ActivityLogManager.shared.log(.bluetooth, "All trusted devices away - starting grace period")
-            self.startAutoArmTimer()
-        }
-    }
-
-    nonisolated func bluetoothStateChanged(_ state: CBManagerState) {
-        Task { @MainActor in
-            if state == .poweredOff {
-                ActivityLogManager.shared.log(.bluetooth, "Bluetooth turned off")
-            } else if state == .poweredOn {
-                ActivityLogManager.shared.log(.bluetooth, "Bluetooth turned on")
-            }
-        }
-    }
+    func log(_ category: ActivityLogCategory, _ message: String) { ActivityLogManager.shared.log(category, message) }
 }
