@@ -234,7 +234,7 @@ struct SettingsView: View {
 
     private func simpleTrustedDeviceRow(_ device: TrustedDevice) -> some View {
         let connectionStatus = alarmManager.bluetoothManager.connectionStatus(for: device)
-        let isNearby = device.lastRSSI.map { $0 >= AppSettings.shared.effectiveAwayThreshold } ?? false
+        let isNearby = alarmManager.bluetoothManager.isNearby(device)
 
         return HStack(spacing: Theme.Spacing.md) {
             Image(systemName: device.icon)
@@ -338,12 +338,9 @@ struct SettingsView: View {
         Toggle("Lock screen when armed", isOn: $settings.autoLockOnArm)
 
         Picker("Countdown duration", selection: $settings.countdownDuration) {
-            Text("Immediately").tag(0)
-            Text("3 seconds").tag(3)
-            Text("5 seconds").tag(5)
-            Text("10 seconds").tag(10)
-            Text("15 seconds").tag(15)
-            Text("30 seconds").tag(30)
+            ForEach(CountdownDuration.allCases) { duration in
+                Text(duration.label).tag(duration)
+            }
         }
 
         // Lid Close Protection with warning
@@ -374,12 +371,28 @@ struct SettingsView: View {
                 if newValue == .custom {
                     _ = settings.selectCustomSound()
                 } else {
-                    settings.alarmSound = newValue
+                    settings.chooseSound(newValue)
                 }
             }
         )) {
-            ForEach(AlarmSound.allCases.filter { $0.isAvailable }) { sound in
+            ForEach(AlarmSound.offered) { sound in
                 Text(sound.rawValue).tag(sound)
+            }
+        }
+
+        if settings.customSoundUnavailable {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                Text("'\(settings.customSoundName)' can't be played - using the default sound")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                Spacer()
+                Button("Choose…") {
+                    _ = settings.selectCustomSound()
+                }
+                .buttonStyle(GlassSecondaryButtonStyle())
             }
         }
 
@@ -403,7 +416,7 @@ struct SettingsView: View {
 
         HStack {
             Text("Volume")
-            Slider(value: $settings.alarmVolume, in: 0.5...1.0)
+            Slider(value: $settings.alarmVolume, in: AlarmVolume.range)
             Button {
                 settings.previewSound()
             } label: {
@@ -432,7 +445,7 @@ struct SettingsView: View {
             }
             Spacer()
             Button("View Log") {
-                ActivityLogWindowController.shared.show()
+                ActivityLogWindowController.shared.show(alarmManager: alarmManager)
             }
             .buttonStyle(GlassBorderedProminentButtonStyle(tint: Theme.Accent.primary))
         }
@@ -677,8 +690,8 @@ struct PINSetupContainerView: View {
     }
 
     private func savePIN() {
-        guard viewModel.pin.count >= 4, viewModel.pin.count <= 8 else {
-            viewModel.errorMessage = "PIN must be 4-8 characters"
+        guard let pin = PIN(viewModel.pin) else {
+            viewModel.errorMessage = "PIN must be 4-8 digits"
             viewModel.showError = true
             return
         }
@@ -690,7 +703,7 @@ struct PINSetupContainerView: View {
             return
         }
 
-        if viewModel.authManager?.savePIN(viewModel.pin) == true {
+        if viewModel.authManager?.savePIN(pin) == true {
             onDismiss()
         } else {
             viewModel.errorMessage = "Failed to save PIN"
