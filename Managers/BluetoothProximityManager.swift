@@ -89,10 +89,10 @@ class BluetoothProximityManager: NSObject, ObservableObject {
 
     // Dynamic thresholds from user settings (hysteresis to prevent oscillation)
     private var rssiPresentThreshold: Int {
-        AppSettings.shared.effectivePresentThreshold
+        AppSettings.shared.proximityThresholds.present
     }
     private var rssiAwayThreshold: Int {
-        AppSettings.shared.effectiveAwayThreshold
+        AppSettings.shared.proximityThresholds.away
     }
 
     // UserDefaults keys for persistence

@@ -32,6 +32,12 @@ else
     SIGNING_IDENTITY="-"
 fi
 
+# Sparkle orders updates by CFBundleVersion, so it must use the same scheme
+# as release.yml (MAJOR*1000 + MINOR*100 + PATCH). Any suffix ("-local") is
+# dropped from the build number.
+IFS='.' read -r V_MAJOR V_MINOR V_PATCH <<< "${VERSION%%-*}"
+BUILD_NUM=$((V_MAJOR * 1000 + V_MINOR * 100 + V_PATCH))
+
 # Paths
 BUILD_DIR=".build/release"
 DIST_DIR="dist"
@@ -87,7 +93,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
     <key>CFBundleShortVersionString</key>
     <string>$VERSION</string>
     <key>CFBundleVersion</key>
-    <string>${VERSION//./}</string>
+    <string>${BUILD_NUM}</string>
     <key>SUFeedURL</key>
     <string>https://raw.githubusercontent.com/shenglong209/MacGuard/main/appcast.xml</string>
     <key>SUPublicEDKey</key>
