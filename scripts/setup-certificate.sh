@@ -40,6 +40,7 @@ echo "Creating self-signed certificate: $CERT_NAME"
 
 # Create certificate request config
 TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
 CSR_CONFIG="$TEMP_DIR/csr.conf"
 cat > "$CSR_CONFIG" << EOF
 [req]
@@ -66,19 +67,30 @@ EOF
 openssl x509 -req -days 3650 -in "$TEMP_DIR/csr.pem" -signkey "$TEMP_DIR/key.pem" \
     -out "$TEMP_DIR/cert.pem" -extfile "$CERT_CONFIG" -extensions v3_req 2>/dev/null
 
-# Create PKCS12 bundle (use legacy format for macOS compatibility)
-P12_PASSWORD="macguard"
+# Create PKCS12 bundle. OpenSSL 3 defaults to ciphers macOS's keychain can't
+# import, so it needs -legacy; LibreSSL (macOS's /usr/bin/openssl) already
+# writes the legacy format and rejects the flag.
+LEGACY_FLAG=()
+if openssl version | grep -q '^OpenSSL 3'; then
+    LEGACY_FLAG=(-legacy)
+fi
+# Random per-run password, never printed. Passed to openssl via the
+# environment so it doesn't appear in `ps`.
+P12_PASSWORD=$(openssl rand -base64 24)
+export P12_PASSWORD
 openssl pkcs12 -export -out "$TEMP_DIR/cert.p12" \
     -inkey "$TEMP_DIR/key.pem" -in "$TEMP_DIR/cert.pem" \
-    -name "$CERT_NAME" -passout pass:$P12_PASSWORD -legacy
+    -name "$CERT_NAME" -passout env:P12_PASSWORD "${LEGACY_FLAG[@]}"
 
 # Import to keychain with trust for code signing
 echo "Importing certificate to keychain..."
+# `security import` only takes the password as an argument, so it is briefly
+# visible in `ps` to other local users while this runs.
 security import "$TEMP_DIR/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
 
 # Set certificate to always be trusted for code signing
 echo "Setting certificate trust (you may be prompted for password)..."
-security add-trusted-cert -d -r trustAsRoot -p codeSign -k "$KEYCHAIN" "$TEMP_DIR/cert.pem" 2>/dev/null || {
+security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$TEMP_DIR/cert.pem" 2>/dev/null || {
     echo ""
     echo "Note: Could not automatically trust certificate. You may need to manually trust it:"
     echo "  1. Open Keychain Access"
@@ -87,30 +99,31 @@ security add-trusted-cert -d -r trustAsRoot -p codeSign -k "$KEYCHAIN" "$TEMP_DI
 }
 
 # Export certificate for CI/CD (base64 encoded p12)
+# Owner-only: the p12 plus its password is the signing identity.
 EXPORT_PATH="$HOME/.macguard-signing"
+umask 077
 mkdir -p "$EXPORT_PATH"
+chmod 700 "$EXPORT_PATH"
 cp "$TEMP_DIR/cert.p12" "$EXPORT_PATH/macguard-signing.p12"
 base64 -i "$TEMP_DIR/cert.p12" > "$EXPORT_PATH/macguard-signing.p12.base64"
-
-# Cleanup
-rm -rf "$TEMP_DIR"
+printf '%s' "$P12_PASSWORD" > "$EXPORT_PATH/macguard-signing.p12.password"
+chmod 600 "$EXPORT_PATH"/macguard-signing.p12*
 
 echo ""
 echo "=== Certificate Created Successfully ==="
 echo ""
 echo "Certificate name: $CERT_NAME"
-echo "P12 password: $P12_PASSWORD"
+echo "P12 password: saved to ~/.macguard-signing/macguard-signing.p12.password"
 echo "Valid for: 10 years"
 echo ""
 echo "For local builds, the certificate is now in your keychain."
 echo ""
 echo "For GitHub Actions CI/CD:"
-echo "  1. Copy the base64-encoded certificate:"
-echo "     cat ~/.macguard-signing/macguard-signing.p12.base64"
-echo ""
-echo "  2. Add as GitHub secrets:"
-echo "     - SIGNING_CERTIFICATE_P12_BASE64: (the base64 content)"
-echo "     - SIGNING_CERTIFICATE_PASSWORD: $P12_PASSWORD"
+echo "  Add two GitHub secrets, copying each value to the clipboard:"
+echo "     - SIGNING_CERTIFICATE_P12_BASE64:"
+echo "         pbcopy < ~/.macguard-signing/macguard-signing.p12.base64"
+echo "     - SIGNING_CERTIFICATE_PASSWORD:"
+echo "         pbcopy < ~/.macguard-signing/macguard-signing.p12.password"
 echo ""
 echo "Verify certificate is available:"
 security find-identity -v -p codesigning | grep "$CERT_NAME"

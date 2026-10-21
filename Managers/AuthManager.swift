@@ -5,7 +5,100 @@
 import LocalAuthentication
 import Security
 
-/// Manages authentication for disarming the alarm (Touch ID + PIN fallback)
+/// Proof the owner just authenticated. Only `AuthManager` can mint one (fileprivate init).
+struct OwnerAuthentication {
+    enum Method: String {
+        case system = "Touch ID / password"
+        case pin = "PIN"
+    }
+
+    let method: Method
+
+    fileprivate init(_ method: Method) {
+        self.method = method
+    }
+}
+
+/// 4-8 ASCII digits.
+struct PIN {
+    static let allowedLengths = 4...8
+
+    fileprivate let digits: String
+
+    init?(_ raw: String) {
+        guard Self.allowedLengths.contains(raw.count),
+              raw.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        digits = raw
+    }
+
+    var weakness: PINWeakness? {
+        let values = digits.compactMap(\.wholeNumberValue)
+        let steps = Set(zip(values, values.dropFirst()).map { $1 - $0 })
+        if digits == "1234" || digits == "12345" { return .luggage }
+        if steps == [0] { return .repeated }
+        if steps == [1] || steps == [-1] { return .sequence }
+        if PINWeakness.wellKnown.contains(digits) { return .common }
+        return nil
+    }
+}
+
+/// A guessable PIN. Saving one takes a second confirmation.
+enum PINWeakness: Equatable {
+    /// 1234 / 12345 (Spaceballs)
+    case luggage
+    case repeated
+    case sequence
+    case common
+
+    static let wellKnown: Set<String> = ["1212", "2580", "1122", "1313", "6969", "2000", "1004", "123123", "121212", "112233"]
+
+    var message: String {
+        switch self {
+        case .luggage:
+            return "“That's the kind of thing an idiot would have on his luggage!”"
+        case .repeated: return "A repeated digit is one of the first PINs anyone tries."
+        case .sequence: return "A straight run of digits is one of the first PINs anyone tries."
+        case .common: return "This is one of the most common PINs."
+        }
+    }
+}
+
+enum PINVerification {
+    case accepted(OwnerAuthentication)
+    case rejected
+    case lockedOut
+    case noPINConfigured
+}
+
+/// After `freeAttempts` wrong guesses, each one locks out for 30 s, doubling (capped at ~8.5 h).
+struct PINThrottle: Equatable, Codable {
+    static let freeAttempts = 3
+    static let baseLockout: TimeInterval = 30
+
+    private(set) var failedAttempts = 0
+    private(set) var lockedUntil: Date?
+
+    func lockout(at now: Date) -> Date? {
+        guard let lockedUntil, now < lockedUntil else { return nil }
+        return lockedUntil
+    }
+
+    mutating func recordSuccess() {
+        self = PINThrottle()
+    }
+
+    /// Returns the new lockout end, if one starts.
+    mutating func recordFailure(at now: Date) -> Date? {
+        failedAttempts += 1
+        let excess = failedAttempts - Self.freeAttempts
+        guard excess > 0 else { return nil }
+        let until = now.addingTimeInterval(Self.baseLockout * pow(2, Double(min(excess - 1, 10))))
+        lockedUntil = until
+        return until
+    }
+}
+
+/// Manages authentication for disarming the alarm (Touch ID / password + PIN fallback)
 class AuthManager: ObservableObject {
     // MARK: - Published Properties
 
@@ -17,135 +110,138 @@ class AuthManager: ObservableObject {
     private let keychainService = "com.shenglong.macguard"
     private let keychainAccount = "userPIN"
 
-    // MARK: - Logging Helper
-
-    private func log(_ category: ActivityLogCategory, _ message: String) {
-        Task { @MainActor in
-            ActivityLogManager.shared.log(category, message)
-        }
+    /// Persisted, so a relaunch doesn't reset the count; only a disarm does.
+    @Published private var throttle: PINThrottle {
+        didSet { UserDefaults.standard.set(try? JSONEncoder().encode(throttle), forKey: Self.throttleKey) }
     }
+    private static let throttleKey = "pinThrottle"
+
+    func pinLockout(at now: Date) -> Date? {
+        throttle.lockout(at: now)
+    }
+
 
     // MARK: - Initialization
 
     init() {
+        throttle = UserDefaults.standard.data(forKey: Self.throttleKey)
+            .flatMap { try? JSONDecoder().decode(PINThrottle.self, from: $0) } ?? PINThrottle()
         checkBiometrics()
-        hasPIN = retrievePIN() != nil
+        hasPIN = pinExists()
     }
 
-    // MARK: - Biometrics
+    // MARK: - System Authentication
 
-    /// Check if biometric authentication is available
+    /// Check if biometric authentication is available (used for labelling)
     func checkBiometrics() {
         let context = LAContext()
         var error: NSError?
         hasBiometrics = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
 
         if let error = error {
-            log(.system, "Biometrics not available: \(error.localizedDescription)")
+            logActivity(.system, "Biometrics not available: \(error.localizedDescription)")
         }
     }
 
-    /// Authenticate using biometrics (Touch ID)
-    /// - Parameter completion: Called with (success, error)
-    func authenticateWithBiometrics(completion: @escaping (Bool, Error?) -> Void) {
+    /// `.deviceOwnerAuthentication` falls back to the password, so a Mac without Touch ID can disarm.
+    func authenticate(completion: @escaping (OwnerAuthentication?) -> Void) {
+        pendingAuthentication?.invalidate()
         let context = LAContext()
+        pendingAuthentication = context
         let reason = "Authenticate to disable MacGuard alarm"
 
-        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, error in
+        context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
             DispatchQueue.main.async {
-                completion(success, error)
+                completion(success ? OwnerAuthentication(.system) : nil)
             }
         }
     }
 
-    /// Authenticate using biometrics or system password as fallback
-    /// - Parameter completion: Called with (success, error)
-    func authenticateWithAny(completion: @escaping (Bool, Error?) -> Void) {
-        let context = LAContext()
-        let reason = "Authenticate to disable MacGuard alarm"
+    private var pendingAuthentication: LAContext?
 
-        // This allows password fallback when biometrics fail
-        context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, error in
-            DispatchQueue.main.async {
-                completion(success, error)
-            }
-        }
+    func cancelPendingAuthentication() {
+        pendingAuthentication?.invalidate()
+        pendingAuthentication = nil
     }
 
     // MARK: - PIN Management
 
     /// Save PIN to Keychain
-    /// - Parameter pin: The PIN to save
     /// - Returns: true if saved successfully
     @discardableResult
-    func savePIN(_ pin: String) -> Bool {
+    func savePIN(_ pin: PIN) -> Bool {
         // Delete existing PIN first
         deletePIN()
 
-        guard let data = pin.data(using: .utf8) else { return false }
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
-            kSecValueData as String: data,
+        let status = SecItemAdd(pinQuery([
+            kSecValueData as String: Data(pin.digits.utf8),
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        ]
-
-        let status = SecItemAdd(query as CFDictionary, nil)
+        ]), nil)
         hasPIN = status == errSecSuccess
 
         if hasPIN {
-            log(.system, "PIN saved to Keychain")
+            logActivity(.system, "PIN saved to Keychain")
         } else {
-            log(.system, "Failed to save PIN: \(status)")
+            logActivity(.system, "Failed to save PIN: \(status)")
         }
 
         return hasPIN
     }
 
-    /// Retrieve PIN from Keychain
-    /// - Returns: The stored PIN or nil
-    func retrievePIN() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let pin = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        return pin
+    /// The PIN item's identity plus `extra`.
+    private func pinQuery(_ extra: [String: Any] = [:]) -> CFDictionary {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: keychainService,
+         kSecAttrAccount as String: keychainAccount]
+            .merging(extra) { $1 } as CFDictionary
     }
 
-    /// Validate entered PIN against stored PIN
-    /// - Parameter input: The PIN to validate
-    /// - Returns: true if PIN matches
-    func validatePIN(_ input: String) -> Bool {
-        guard let stored = retrievePIN() else { return false }
-        return stored == input
+    /// Attributes only: reading the secret would prompt for keychain access at launch.
+    private func pinExists() -> Bool {
+        SecItemCopyMatching(pinQuery([kSecReturnAttributes as String: true, kSecMatchLimit as String: kSecMatchLimitOne]), nil) == errSecSuccess
+    }
+
+    private func retrievePIN() -> Data? {
+        var result: AnyObject?
+        guard SecItemCopyMatching(pinQuery([kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]), &result) == errSecSuccess else { return nil }
+        return result as? Data
+    }
+
+    /// Not parsed as a `PIN`: older versions saved non-digit PINs, which must keep working.
+    func verifyPIN(_ input: String, now: Date = Date()) -> PINVerification {
+        if throttle.lockout(at: now) != nil {
+            return .lockedOut
+        }
+        guard let stored = retrievePIN() else { return .noPINConfigured }
+
+        if Self.constantTimeEquals(stored, Data(input.utf8)) {
+            throttle.recordSuccess()
+            return .accepted(OwnerAuthentication(.pin))
+        }
+
+        let until = throttle.recordFailure(at: now)
+        logActivity(.system, "Incorrect PIN (attempt \(throttle.failedAttempts))")
+        return until == nil ? .rejected : .lockedOut
+    }
+
+    func resetPINAttempts() {
+        guard throttle != PINThrottle() else { return }
+        throttle = PINThrottle()
+    }
+
+    static func constantTimeEquals(_ a: Data, _ b: Data) -> Bool {
+        guard a.count == b.count else { return false }
+        return zip(a, b).reduce(UInt8(0)) { $0 | ($1.0 ^ $1.1) } == 0
     }
 
     /// Delete PIN from Keychain
     /// - Returns: true if deleted successfully
     @discardableResult
     func deletePIN() -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount
-        ]
-
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(pinQuery())
         if status == errSecSuccess || status == errSecItemNotFound {
             hasPIN = false
-            log(.system, "PIN deleted from Keychain")
+            logActivity(.system, "PIN deleted from Keychain")
             return true
         }
         return false
